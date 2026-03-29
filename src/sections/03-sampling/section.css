@@ -1,0 +1,15 @@
+/* ── §3 sampling ── */
+#sample-output {
+	margin-top: 1.2rem;
+	border: 1px solid #ccc;
+	padding: 0.5rem;
+	font-size: 0.95rem;
+	line-height: 2;
+	word-break: break-all;
+}
+.gen-prompt { color: #888; }
+/* alternating warm/cool tints for generated tokens — distinct from §1 greens/blues */
+.gen-tok   { display: inline; white-space: pre; }
+.gen-tok-a { background: #fdeedd; }
+.gen-tok-b { background: #ddeef8; }
+#sample-meta { font-size: 0.8rem; color: #555; margin-top: 0.5rem; }

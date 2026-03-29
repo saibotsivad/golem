@@ -1,0 +1,15 @@
+/* ── §1 tokenization ── */
+#tokenize-results { margin-top: 1.2rem; }
+#token-summary { font-size: 0.85rem; margin-bottom: 0.6rem; }
+#token-visual {
+	font-size: 0.95rem;
+	line-height: 2;
+	word-break: break-all;
+	border: 1px solid #ccc;
+	padding: 0.5rem;
+	margin-bottom: 0.8rem;
+}
+.tok { display: inline; white-space: pre; }
+.tok:nth-child(odd)  { background: #ddeedd; }
+.tok:nth-child(even) { background: #dde2ee; }
+#token-ids { font-size: 0.8rem; color: #444; word-break: break-all; }

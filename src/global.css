@@ -1,0 +1,74 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+	font-family: 'Courier New', Courier, monospace;
+	font-size: 16px;
+	line-height: 1.5;
+	max-width: 860px;
+	margin: 0 auto;
+	padding: 2rem 1.5rem 4rem;
+	background: #fff;
+	color: #000;
+}
+
+h1 { font-size: 1.4rem; margin: 0 0 0.2rem; }
+h2 { font-size: 1.1rem; margin: 2.5rem 0 0.5rem; border-bottom: 1px solid #000; padding-bottom: 0.2rem; }
+p { margin: 0.4rem 0 0.8rem; font-size: 0.9rem; }
+a { color: #000; }
+small { font-size: 0.8rem; color: #555; }
+
+textarea {
+	width: 100%;
+	min-height: 5rem;
+	font-family: inherit;
+	font-size: 0.95rem;
+	padding: 0.5rem;
+	border: 1px solid #000;
+	resize: vertical;
+	display: block;
+}
+textarea:focus { outline: 2px solid #000; outline-offset: 1px; }
+
+button {
+	font-family: inherit;
+	font-size: 0.9rem;
+	padding: 0.3rem 1.2rem;
+	border: 1px solid #000;
+	background: #000;
+	color: #fff;
+	cursor: pointer;
+	margin-top: 0.5rem;
+}
+button + button { margin-left: 0.4rem; }
+button:disabled {
+	background: #888;
+	border-color: #888;
+	cursor: default;
+}
+
+.section-status {
+	font-size: 0.85rem;
+	margin: 0.5rem 0 0;
+	min-height: 1.3em;
+	color: #555;
+}
+
+/* ── shared param row ── */
+.param-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5rem;
+	margin-top: 0.6rem;
+	font-size: 0.9rem;
+	align-items: baseline;
+}
+.param-row label { display: flex; align-items: baseline; gap: 0.4rem; }
+.param-row select,
+.param-row input[type=number] {
+	font-family: inherit;
+	font-size: 0.9rem;
+	padding: 0.15rem 0.3rem;
+	border: 1px solid #000;
+}
+.param-row input[type=number] { width: 5rem; }
+.param-note { font-size: 0.8rem; color: #555; margin-top: 0.3rem; }

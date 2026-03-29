@@ -1,0 +1,24 @@
+/* ── §2 next-token prediction ── */
+#predict-results { margin-top: 1.2rem; }
+#pred-header { font-size: 0.85rem; margin-bottom: 0.5rem; color: #444; }
+.pred-row {
+	display: grid;
+	grid-template-columns: 16ch 1fr 5.5ch;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 2px;
+	font-size: 0.82rem;
+	cursor: pointer;
+}
+.pred-row:hover { background: #f0f0f0; }
+.pred-token {
+	white-space: pre;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-align: right;
+	padding-right: 0.4rem;
+	border-right: 1px solid #ccc;
+}
+.pred-bar-wrap { background: #e8e8e8; height: 1em; }
+.pred-bar      { background: #222; height: 100%; }
+.pred-pct      { text-align: right; color: #444; }

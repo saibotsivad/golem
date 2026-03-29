@@ -1,0 +1,30 @@
+<!-- ════════════════════════════════════════════
+     §5 — Semantic Search
+     ════════════════════════════════════════════ -->
+<h2>§5 — Semantic Search</h2>
+<p>
+	Embeddings make it possible to search by <em>meaning</em> rather than by matching keywords.
+	The corpus here is 40 one-sentence descriptions of AI/ML concepts — the same ideas demonstrated
+	in §1–§4. The index is built once with the same all-MiniLM-L6-v2 model from §4 and stored in
+	IndexedDB so subsequent visits skip the embedding step entirely.
+</p>
+<p class="param-note">
+	Try queries that don't share words with any passage: <em>"breaking text into pieces"</em>,
+	<em>"making output more creative"</em>, <em>"how the model focuses on relevant words"</em>,
+	<em>"preventing wrong answers"</em>.
+</p>
+
+<div id="search-index-row">
+	<button type="button" id="build-index-btn">Build search index  [uses same ~23 MB model as §4]</button><span id="index-status"></span>
+</div>
+
+<form id="search-form" class="search-input-row">
+	<input type="text" id="search-query" placeholder="Search by meaning…" disabled>
+	<button type="submit" id="search-btn" disabled>Search</button>
+</form>
+<div id="search-status" class="section-status"></div>
+
+<div id="search-results" hidden>
+	<div id="search-header"></div>
+	<div id="search-list"></div>
+</div>

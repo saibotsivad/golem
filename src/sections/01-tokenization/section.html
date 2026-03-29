@@ -1,0 +1,22 @@
+<!-- ════════════════════════════════════════════
+     §1 — Tokenization
+     ════════════════════════════════════════════ -->
+<h2>§1 — Tokenization</h2>
+<p>
+	Tokenization is how large language models break text into discrete units before processing.
+	This demo uses the <strong>GPT-2 BPE</strong> (Byte Pair Encoding) tokenizer via
+	<a href="https://huggingface.co/docs/transformers.js" target="_blank" rel="noopener">Transformers.js</a>.
+	The tokenizer vocabulary (~800 KB) is downloaded from HuggingFace on first use and cached by the browser.
+</p>
+
+<form id="tokenize-form">
+	<textarea id="tokenize-input" placeholder="Enter text to tokenize…">The quick brown fox jumps over the lazy dog.</textarea>
+	<button type="submit" id="tokenize-btn" disabled>Tokenize</button>
+</form>
+<div id="tokenize-status" class="section-status">Loading tokenizer vocabulary…</div>
+
+<div id="tokenize-results" hidden>
+	<div id="token-summary"></div>
+	<div id="token-visual"></div>
+	<div id="token-ids"></div>
+</div>

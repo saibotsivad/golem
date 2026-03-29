@@ -1,0 +1,21 @@
+/* ── §4 embeddings ── */
+#embed-results { margin-top: 1.2rem; }
+.embed-row {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	margin-bottom: 0.4rem;
+}
+.embed-label { font-size: 0.85rem; color: #555; width: 1.4rem; flex-shrink: 0; }
+.embed-canvas {
+	display: block;
+	border: 1px solid #ccc;
+	image-rendering: pixelated;
+	width: 100%;
+	height: 24px;
+}
+#embed-similarity {
+	margin-top: 0.8rem;
+	font-size: 1rem;
+}
+#embed-note { font-size: 0.8rem; color: #555; margin-top: 0.2rem; }

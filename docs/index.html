@@ -64,22 +64,6 @@ button:disabled {
 	color: #555;
 }
 
-/* ── §1 tokenization ── */
-#tokenize-results { margin-top: 1.2rem; }
-#token-summary { font-size: 0.85rem; margin-bottom: 0.6rem; }
-#token-visual {
-	font-size: 0.95rem;
-	line-height: 2;
-	word-break: break-all;
-	border: 1px solid #ccc;
-	padding: 0.5rem;
-	margin-bottom: 0.8rem;
-}
-.tok { display: inline; white-space: pre; }
-.tok:nth-child(odd)  { background: #ddeedd; }
-.tok:nth-child(even) { background: #dde2ee; }
-#token-ids { font-size: 0.8rem; color: #444; word-break: break-all; }
-
 /* ── shared param row ── */
 .param-row {
 	display: flex;
@@ -99,6 +83,22 @@ button:disabled {
 }
 .param-row input[type=number] { width: 5rem; }
 .param-note { font-size: 0.8rem; color: #555; margin-top: 0.3rem; }
+
+/* ── §1 tokenization ── */
+#tokenize-results { margin-top: 1.2rem; }
+#token-summary { font-size: 0.85rem; margin-bottom: 0.6rem; }
+#token-visual {
+	font-size: 0.95rem;
+	line-height: 2;
+	word-break: break-all;
+	border: 1px solid #ccc;
+	padding: 0.5rem;
+	margin-bottom: 0.8rem;
+}
+.tok { display: inline; white-space: pre; }
+.tok:nth-child(odd)  { background: #ddeedd; }
+.tok:nth-child(even) { background: #dde2ee; }
+#token-ids { font-size: 0.8rem; color: #444; word-break: break-all; }
 
 /* ── §2 next-token prediction ── */
 #predict-results { margin-top: 1.2rem; }
@@ -184,13 +184,14 @@ button:disabled {
 .result-bar-wrap { flex: 1; background: #e8e8e8; height: 0.65em; }
 .result-bar      { background: #222; height: 100%; }
 .result-text     { font-size: 0.88rem; line-height: 1.4; }
+
 </style>
 </head>
 <body>
 
 <h1>golem</h1>
 <p>Proof-of-concept demos of AI core technologies, running entirely in the browser.<br>
-<small>Updated <span id="updated">2026-03-29T13:46:41.111Z</span></small></p>
+<small>Updated <span id="updated">2026-03-29T14:06:29.951Z</span></small></p>
 
 
 <!-- ════════════════════════════════════════════
@@ -383,19 +384,6 @@ env.allowLocalModels = false
 // ── shared tokenizer ───────────────────────────────────────────────────────
 let tokenizer = null
 
-const tokStatus = document.getElementById('tokenize-status')
-const tokBtn    = document.getElementById('tokenize-btn')
-const tokInput  = document.getElementById('tokenize-input')
-
-AutoTokenizer.from_pretrained('Xenova/gpt2')
-	.then(tok => {
-		tokenizer = tok
-		tokStatus.textContent = ''
-		tokBtn.disabled = false
-		tokInput.focus()
-	})
-	.catch(err => { tokStatus.textContent = 'Failed to load tokenizer: ' + err.message })
-
 
 // ── shared GPT-2 model (§2 and §3) ────────────────────────────────────────
 let lmModel = null
@@ -434,7 +422,70 @@ function escHtml(s) {
 }
 
 
+// ── shared embedder (§4 and §5) ────────────────────────────────────────────
+let embedder = null
+
+async function ensureEmbedder(onProgress) {
+	if (embedder) return embedder
+	embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+		quantized: true,
+		progress_callback: info => { if (onProgress) onProgress(info) },
+	})
+	return embedder
+}
+
+async function embed(text) {
+	const ext = await ensureEmbedder()
+	const out = await ext(text, { pooling: 'mean', normalize: true })
+	return Array.from(out.data)
+}
+
+function cosine(a, b) {
+	let dot = 0, na = 0, nb = 0
+	for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] ** 2; nb += b[i] ** 2 }
+	return dot / (Math.sqrt(na) * Math.sqrt(nb))
+}
+
+function drawEmbedding(canvas, vec, scale) {
+	const ctx = canvas.getContext('2d')
+	const w = canvas.width, h = canvas.height, n = vec.length
+	ctx.clearRect(0, 0, w, h)
+	for (let i = 0; i < n; i++) {
+		const x0 = Math.floor(i * w / n)
+		const x1 = Math.floor((i + 1) * w / n)
+		const v  = vec[i] / scale  // [-1, 1]
+		let r, g, b
+		if (v >= 0) {
+			const t = Math.min(1, v)
+			r = Math.round(255 * (1 - t * 0.5))
+			g = Math.round(255 * (1 - t * 0.5))
+			b = 255
+		} else {
+			const t = Math.min(1, -v)
+			r = 255
+			g = Math.round(255 * (1 - t * 0.5))
+			b = Math.round(255 * (1 - t * 0.5))
+		}
+		ctx.fillStyle = `rgb(${r},${g},${b})`
+		ctx.fillRect(x0, 0, Math.max(1, x1 - x0), h)
+	}
+}
+
+
 // ── §1 tokenization ───────────────────────────────────────────────────────
+const tokStatus = document.getElementById('tokenize-status')
+const tokBtn    = document.getElementById('tokenize-btn')
+const tokInput  = document.getElementById('tokenize-input')
+
+AutoTokenizer.from_pretrained('Xenova/gpt2')
+	.then(tok => {
+		tokenizer = tok
+		tokStatus.textContent = ''
+		tokBtn.disabled = false
+		tokInput.focus()
+	})
+	.catch(err => { tokStatus.textContent = 'Failed to load tokenizer: ' + err.message })
+
 const tokResults = document.getElementById('tokenize-results')
 const tokSummary = document.getElementById('token-summary')
 const tokVisual  = document.getElementById('token-visual')
@@ -694,54 +745,6 @@ const embedNoteEl  = document.getElementById('embed-note')
 const canvasA      = document.getElementById('canvas-a')
 const canvasB      = document.getElementById('canvas-b')
 
-let embedder = null
-
-async function ensureEmbedder(onProgress) {
-	if (embedder) return embedder
-	embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-		quantized: true,
-		progress_callback: info => { if (onProgress) onProgress(info) },
-	})
-	return embedder
-}
-
-async function embed(text) {
-	const ext = await ensureEmbedder()
-	const out = await ext(text, { pooling: 'mean', normalize: true })
-	return Array.from(out.data)
-}
-
-function cosine(a, b) {
-	let dot = 0, na = 0, nb = 0
-	for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] ** 2; nb += b[i] ** 2 }
-	return dot / (Math.sqrt(na) * Math.sqrt(nb))
-}
-
-function drawEmbedding(canvas, vec, scale) {
-	const ctx = canvas.getContext('2d')
-	const w = canvas.width, h = canvas.height, n = vec.length
-	ctx.clearRect(0, 0, w, h)
-	for (let i = 0; i < n; i++) {
-		const x0 = Math.floor(i * w / n)
-		const x1 = Math.floor((i + 1) * w / n)
-		const v  = vec[i] / scale  // [-1, 1]
-		let r, g, b
-		if (v >= 0) {
-			const t = Math.min(1, v)
-			r = Math.round(255 * (1 - t * 0.5))
-			g = Math.round(255 * (1 - t * 0.5))
-			b = 255
-		} else {
-			const t = Math.min(1, -v)
-			r = 255
-			g = Math.round(255 * (1 - t * 0.5))
-			b = Math.round(255 * (1 - t * 0.5))
-		}
-		ctx.fillStyle = `rgb(${r},${g},${b})`
-		ctx.fillRect(x0, 0, Math.max(1, x1 - x0), h)
-	}
-}
-
 document.getElementById('embed-form').addEventListener('submit', async e => {
 	e.preventDefault()
 	const textA = document.getElementById('embed-a').value
@@ -974,6 +977,7 @@ document.getElementById('search-form').addEventListener('submit', async e => {
 		searchBtn.disabled = false
 	}
 })
+
 </script>
 
 </body>

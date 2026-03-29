@@ -1,0 +1,21 @@
+/* ── §5 semantic search ── */
+#search-index-row { margin-bottom: 0.4rem; }
+#index-status { font-size: 0.85rem; color: #555; margin-left: 0.8rem; }
+.search-input-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+#search-query {
+	flex: 1;
+	font-family: inherit;
+	font-size: 0.95rem;
+	padding: 0.3rem 0.5rem;
+	border: 1px solid #000;
+	min-width: 0;
+}
+#search-query:focus { outline: 2px solid #000; outline-offset: 1px; }
+#search-results { margin-top: 1.2rem; }
+#search-header { font-size: 0.85rem; color: #444; margin-bottom: 0.6rem; }
+.result-row { margin-bottom: 0.9rem; }
+.result-meta { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem; }
+.result-score { font-size: 0.8rem; color: #444; width: 4.5ch; flex-shrink: 0; text-align: right; }
+.result-bar-wrap { flex: 1; background: #e8e8e8; height: 0.65em; }
+.result-bar      { background: #222; height: 100%; }
+.result-text     { font-size: 0.88rem; line-height: 1.4; }

@@ -1,0 +1,51 @@
+<!-- ════════════════════════════════════════════
+     §3 — Sampling Strategies
+     ════════════════════════════════════════════ -->
+<h2>§3 — Sampling Strategies</h2>
+<p>
+	Autoregressive generation is a loop: run the model, get a distribution, <em>pick</em> a token, append
+	it, repeat. How you pick determines the character of the output. The four strategies below all operate
+	on the same probability distribution from §2.
+</p>
+<p class="param-note">
+	<strong>Greedy</strong> — always take the highest-probability token. Deterministic; tends toward
+	repetitive, "safe" text.<br>
+	<strong>Temperature</strong> — sample from the full distribution. Higher temperature = more random.<br>
+	<strong>Top-k</strong> — restrict sampling to the k most probable tokens, then sample.<br>
+	<strong>Top-p (nucleus)</strong> — restrict sampling to the smallest set of tokens whose cumulative
+	probability ≥ p, then sample.
+</p>
+
+<form id="sample-form">
+	<textarea id="sample-input" placeholder="Enter a prompt…">The quick brown fox</textarea>
+	<div class="param-row">
+		<label>Strategy
+			<select id="strategy">
+				<option value="greedy">greedy</option>
+				<option value="temperature" selected>temperature</option>
+				<option value="topk">top-k</option>
+				<option value="topp">top-p (nucleus)</option>
+			</select>
+		</label>
+		<label id="param-temp-label">Temperature
+			<input type="number" id="sample-temp" value="1.0" min="0.1" max="5.0" step="0.1">
+		</label>
+		<label id="param-k-label" hidden>K
+			<input type="number" id="sample-k" value="40" min="1" max="500" step="1">
+		</label>
+		<label id="param-p-label" hidden>P
+			<input type="number" id="sample-p" value="0.9" min="0.01" max="1.0" step="0.01">
+		</label>
+		<label>Max tokens
+			<input type="number" id="sample-max" value="40" min="1" max="200" step="1">
+		</label>
+	</div>
+	<button type="submit" id="sample-btn">Generate  [uses same ~81 MB model as §2]</button>
+	<button type="button" id="sample-stop-btn" disabled>Stop</button>
+</form>
+<div id="sample-status" class="section-status"></div>
+
+<div id="sample-output" hidden>
+	<div id="sample-text"></div>
+	<div id="sample-meta"></div>
+</div>

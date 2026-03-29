@@ -1,0 +1,30 @@
+<!-- ════════════════════════════════════════════
+     §2 — Next-Token Prediction
+     ════════════════════════════════════════════ -->
+<h2>§2 — Next-Token Prediction</h2>
+<p>
+	At each step, a language model produces a <em>probability distribution</em> over every token in its
+	vocabulary — not a single answer. This demo runs <strong>GPT-2</strong> (quantized, ~81 MB, cached after
+	first download) fully in-browser and shows that raw distribution for the token that would follow your input.
+	Click any row to append that token and recalculate.
+</p>
+
+<form id="predict-form">
+	<textarea id="predict-input" placeholder="Enter a prompt…">The quick brown fox</textarea>
+	<div class="param-row">
+		<label>Temperature
+			<input type="number" id="temperature" value="1.0" min="0.1" max="5.0" step="0.1">
+		</label>
+		<label>Show top
+			<input type="number" id="top-n" value="20" min="5" max="100" step="1"> tokens
+		</label>
+	</div>
+	<p class="param-note">Temperature &lt; 1 sharpens the distribution; &gt; 1 flattens it.</p>
+	<button type="submit" id="predict-btn">Predict next token  [downloads ~81 MB on first run]</button>
+</form>
+<div id="predict-status" class="section-status"></div>
+
+<div id="predict-results" hidden>
+	<div id="pred-header"></div>
+	<div id="pred-chart"></div>
+</div>

@@ -1,0 +1,39 @@
+<!-- ════════════════════════════════════════════
+     §4 — Embeddings
+     ════════════════════════════════════════════ -->
+<h2>§4 — Embeddings</h2>
+<p>
+	An embedding encodes text as a point in high-dimensional space: semantically similar texts land
+	near each other regardless of surface wording. This demo uses
+	<a href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2" target="_blank" rel="noopener">all-MiniLM-L6-v2</a>
+	(~23 MB quantized) to produce 384-dimensional sentence vectors, then measures their
+	<strong>cosine similarity</strong> — the angle between the two vectors in that space.
+</p>
+<p class="param-note">
+	Each bar below is the full 384-dimensional vector visualized left-to-right:
+	<span style="background:#88aaff;padding:0 0.3em;">blue = positive</span>,
+	<span style="background:#ff8888;padding:0 0.3em;">red = negative</span>.
+	Similar sentences produce similar-looking patterns.
+</p>
+
+<form id="embed-form">
+	<label style="font-size:0.85rem">A</label>
+	<textarea id="embed-a" style="min-height:3.5rem">A dog ran across the field.</textarea>
+	<label style="font-size:0.85rem;margin-top:0.5rem;display:block">B</label>
+	<textarea id="embed-b" style="min-height:3.5rem">The puppy sprinted through the meadow.</textarea>
+	<button type="submit" id="embed-btn">Compare embeddings  [downloads ~23 MB on first run]</button>
+</form>
+<div id="embed-status" class="section-status"></div>
+
+<div id="embed-results" hidden>
+	<div class="embed-row">
+		<span class="embed-label">A</span>
+		<canvas id="canvas-a" class="embed-canvas" width="384" height="24"></canvas>
+	</div>
+	<div class="embed-row">
+		<span class="embed-label">B</span>
+		<canvas id="canvas-b" class="embed-canvas" width="384" height="24"></canvas>
+	</div>
+	<div id="embed-similarity"></div>
+	<div id="embed-note"></div>
+</div>
