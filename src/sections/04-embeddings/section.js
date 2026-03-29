@@ -6,6 +6,7 @@ const embedSimEl   = document.getElementById('embed-similarity')
 const embedNoteEl  = document.getElementById('embed-note')
 const canvasA      = document.getElementById('canvas-a')
 const canvasB      = document.getElementById('canvas-b')
+const canvasDiff   = document.getElementById('canvas-diff')
 
 document.getElementById('embed-form').addEventListener('submit', async e => {
 	e.preventDefault()
@@ -29,6 +30,7 @@ document.getElementById('embed-form').addEventListener('submit', async e => {
 		const scale = Math.max(...vecA.map(Math.abs), ...vecB.map(Math.abs))
 		drawEmbedding(canvasA, vecA, scale)
 		drawEmbedding(canvasB, vecB, scale)
+		drawEmbeddingDiff(canvasDiff, vecA, vecB, scale)
 
 		const sim = cosine(vecA, vecB)
 		const pct = (sim * 100).toFixed(1)

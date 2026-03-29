@@ -13,4 +13,4 @@ Both vectors are scaled to the same max absolute value so the color bars are vis
 
 ## DOM elements owned
 
-`#embed-form`, `#embed-a`, `#embed-b`, `#embed-btn`, `#embed-status`, `#embed-results`, `#canvas-a`, `#canvas-b`, `#embed-similarity`, `#embed-note`
+`#embed-form`, `#embed-a`, `#embed-b`, `#embed-btn`, `#embed-status`, `#embed-results`, `#canvas-a`, `#canvas-b`, `#canvas-diff`, `#embed-similarity`, `#embed-note`

@@ -140,6 +140,20 @@ function drawEmbedding(canvas, vec, scale) {
 	}
 }
 
+function drawEmbeddingDiff(canvas, vecA, vecB, scale) {
+	const ctx = canvas.getContext('2d')
+	const w = canvas.width, h = canvas.height, n = vecA.length
+	ctx.clearRect(0, 0, w, h)
+	for (let i = 0; i < n; i++) {
+		const x0 = Math.floor(i * w / n)
+		const x1 = Math.floor((i + 1) * w / n)
+		const diff = Math.abs(vecA[i] - vecB[i]) / (2 * scale)  // [0, 1]
+		const t = Math.round(255 * (1 - Math.min(1, diff)))
+		ctx.fillStyle = `rgb(${t},${t},${t})`
+		ctx.fillRect(x0, 0, Math.max(1, x1 - x0), h)
+	}
+}
+
 // ── debug panel renderer ────────────────────────────────────────────────────
 const _debugStatusClass = {
 	ready: 'status-ready', cached: 'status-cached', absent: 'status-absent',
