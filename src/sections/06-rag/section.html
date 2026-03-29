@@ -1,0 +1,65 @@
+<!-- ════════════════════════════════════════════
+     §6 — Retrieval-Augmented Generation (RAG)
+     ════════════════════════════════════════════ -->
+<h2>§6 — Retrieval-Augmented Generation</h2>
+<p>
+	RAG combines §5 and §3 into one pipeline: embed a query, retrieve the most
+	relevant passages from a corpus, prepend them to the prompt, then generate.
+	The retrieved context steers GPT-2 toward topic-relevant continuations — even
+	though GPT-2 isn't instruction-tuned and won't produce clean "answers". The
+	demo makes each step visible: which passages were retrieved, exactly what
+	string is fed to the model, and how the output shifts when context is present
+	versus absent.
+</p>
+<p class="param-note">
+	Try <em>"how attention works"</em>, <em>"training a language model"</em>,
+	<em>"searching by meaning"</em>, or <em>"why models make things up"</em>.
+</p>
+
+<div id="rag-index-row">
+	<button type="button" id="rag-build-btn">Build RAG index  [~23 MB, same embedder as §4–§5]</button><span id="rag-index-status"></span>
+</div>
+
+<form id="rag-form">
+	<textarea id="rag-query" placeholder="Enter a topic or phrase…">attention mechanism in transformers</textarea>
+	<div class="param-row">
+		<label>Retrieve k passages
+			<input type="number" id="rag-k" value="3" min="1" max="5" step="1">
+		</label>
+		<label>Temperature
+			<input type="number" id="rag-temp" value="0.8" min="0.1" max="2.0" step="0.1">
+		</label>
+		<label>Max tokens
+			<input type="number" id="rag-max" value="50" min="10" max="100" step="5">
+		</label>
+	</div>
+	<div class="rag-compare-row">
+		<label class="rag-compare-label">
+			<input type="checkbox" id="rag-compare"> also generate without retrieved context
+		</label>
+	</div>
+	<button type="submit" id="rag-btn" disabled>Retrieve &amp; Generate  [~81 MB model]</button>
+	<button type="button" id="rag-stop-btn" disabled>Stop</button>
+</form>
+<div id="rag-status" class="section-status"></div>
+
+<div id="rag-results" hidden>
+	<div class="rag-label">retrieved passages</div>
+	<div id="rag-retrieved-list"></div>
+
+	<div class="rag-label">context fed to model</div>
+	<pre id="rag-context-box"></pre>
+
+	<div class="rag-label-row">
+		<span class="rag-label">generation — with retrieved context</span>
+		<button type="button" id="rag-stop-inline" disabled>Stop</button>
+	</div>
+	<div id="rag-output-with" class="rag-gen-output"></div>
+	<div id="rag-meta-with" class="rag-meta"></div>
+
+	<div id="rag-without-section" hidden>
+		<div class="rag-label">generation — without context (bare query)</div>
+		<div id="rag-output-without" class="rag-gen-output"></div>
+		<div id="rag-meta-without" class="rag-meta"></div>
+	</div>
+</div>

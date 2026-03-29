@@ -1,0 +1,49 @@
+/* ── §6 RAG ── */
+#rag-index-row { margin-bottom: 0.5rem; }
+#rag-index-status { font-size: 0.85rem; color: #555; margin-left: 0.8rem; }
+#rag-query { min-height: 3.5rem; }
+.rag-compare-row { margin: 0.4rem 0 0; }
+.rag-compare-label { font-size: 0.9rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+#rag-results { margin-top: 1.4rem; }
+.rag-label-row { display: flex; align-items: baseline; gap: 0.8rem; margin: 1.2rem 0 0.5rem; border-bottom: 1px solid #ddd; padding-bottom: 0.2rem; }
+.rag-label-row .rag-label { margin: 0; border: none; padding: 0; flex: 1; }
+.rag-label-row button { margin-top: 0; padding: 0.1rem 0.6rem; font-size: 0.75rem; }
+.rag-label {
+	font-size: 0.75rem;
+	color: #666;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	margin: 1.2rem 0 0.5rem;
+	border-bottom: 1px solid #ddd;
+	padding-bottom: 0.2rem;
+}
+.rag-passage-row { margin-bottom: 0.9rem; }
+.rag-passage-meta { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem; }
+.rag-passage-score { font-size: 0.8rem; color: #444; width: 4.5ch; flex-shrink: 0; text-align: right; }
+.rag-bar-wrap { flex: 1; background: #e8e8e8; height: 0.65em; }
+.rag-bar      { background: #222; height: 100%; }
+.rag-passage-text { font-size: 0.88rem; line-height: 1.45; }
+#rag-context-box {
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-family: inherit;
+	font-size: 0.82rem;
+	line-height: 1.5;
+	background: #f6f6f6;
+	border-left: 3px solid #ccc;
+	padding: 0.6rem 0.8rem;
+	margin: 0;
+	max-height: 10rem;
+	overflow-y: auto;
+	color: #444;
+}
+.rag-gen-output {
+	font-family: inherit;
+	font-size: 0.95rem;
+	line-height: 2;
+	word-break: break-word;
+	border: 1px solid #ccc;
+	padding: 0.5rem;
+	min-height: 2.5em;
+}
+.rag-meta { font-size: 0.8rem; color: #555; margin-top: 0.4rem; }

@@ -125,6 +125,10 @@ self.onmessage = async ({ data }) => {
 		let stopReason   = 'limit reached'
 
 		while (stepCount < maxTok) {
+			// Yield to the macrotask queue so a pending 'stop' message can be
+			// processed. Without this, WASM inference resolves synchronously and
+			// the loop never gives the message handler a chance to set stopRequested.
+			await new Promise(resolve => setTimeout(resolve, 0))
 			if (stopRequested) { stopReason = 'stopped'; break }
 			self.postMessage({ type: 'status', text: 'Generating token ' + (stepCount + 1) + ' / ' + maxTok + '\u2026' })
 
