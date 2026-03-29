@@ -12,7 +12,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "http-server docs -c-1",
+    "dev": "node dev.mjs",
     "build": "node build.mjs"
   },
   "devDependencies": {

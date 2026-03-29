@@ -11,7 +11,21 @@ body {
 	color: #000;
 }
 
-h1 { font-size: 1.4rem; margin: 0 0 0.2rem; }
+h1 { font-size: 1.4rem; margin: 0; }
+.site-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.2rem; }
+.debug-toggle { font-size: 0.75rem; color: #aaa; text-decoration: none; }
+.debug-toggle:hover { color: #555; }
+#debug-panel { padding: 1rem 0; }
+.debug-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.8rem; }
+.debug-table th { text-align: left; border-bottom: 1px solid #000; padding: 0.2rem 0.8rem 0.2rem 0; font-weight: normal; color: #555; }
+.debug-table td { padding: 0.25rem 0.8rem 0.25rem 0; }
+.status-ready       { color: #060; }
+.status-cached      { color: #555; }
+.status-absent      { color: #bbb; }
+.status-downloading { color: #660; }
+.status-loading     { color: #660; }
+.status-error       { color: #c00; }
+.status-unknown     { color: #ccc; }
 h2 { font-size: 1.1rem; margin: 2.5rem 0 0.5rem; border-bottom: 1px solid #000; padding-bottom: 0.2rem; }
 p { margin: 0.4rem 0 0.8rem; font-size: 0.9rem; }
 a { color: #000; }

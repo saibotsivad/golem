@@ -3,14 +3,19 @@ const tokStatus = document.getElementById('tokenize-status')
 const tokBtn    = document.getElementById('tokenize-btn')
 const tokInput  = document.getElementById('tokenize-input')
 
+registrySet('gpt2-tokenizer', { status: 'loading' })
 AutoTokenizer.from_pretrained('Xenova/gpt2')
 	.then(tok => {
 		tokenizer = tok
+		registrySet('gpt2-tokenizer', { status: 'ready' })
 		tokStatus.textContent = ''
 		tokBtn.disabled = false
 		tokInput.focus()
 	})
-	.catch(err => { tokStatus.textContent = 'Failed to load tokenizer: ' + err.message })
+	.catch(err => {
+		registrySet('gpt2-tokenizer', { status: 'error' })
+		tokStatus.textContent = 'Failed to load tokenizer: ' + err.message
+	})
 
 const tokResults = document.getElementById('tokenize-results')
 const tokSummary = document.getElementById('token-summary')

@@ -103,16 +103,18 @@ async function idbPut(key, value) {
 
 // Eagerly load from cache on page load
 idbGet(CORPUS_VERSION).then(cached => {
-	if (!cached) return
+	if (!cached) { registrySet('search-index', { status: 'absent' }); return }
 	corpusVecs = cached
+	registrySet('search-index', { status: 'ready' })
 	indexStatusEl.textContent = `${CORPUS.length} passages (cached)`
 	searchQueryEl.disabled = false
 	searchBtn.disabled     = false
-}).catch(() => {})
+}).catch(() => { registrySet('search-index', { status: 'absent' }) })
 
 buildIndexBtn.addEventListener('click', async () => {
 	buildIndexBtn.disabled   = true
 	indexStatusEl.textContent = 'Initializing…'
+	registrySet('search-index', { status: 'loading' })
 	try {
 		const ext = await ensureEmbedder(info => {
 			if (info.status === 'progress')
@@ -128,11 +130,13 @@ buildIndexBtn.addEventListener('click', async () => {
 		}
 		corpusVecs = allVecs
 		await idbPut(CORPUS_VERSION, corpusVecs)
+		registrySet('search-index', { status: 'ready' })
 		indexStatusEl.textContent = `${CORPUS.length} passages indexed and cached`
 		searchQueryEl.disabled = false
 		searchBtn.disabled     = false
 		buildIndexBtn.disabled = false
 	} catch (err) {
+		registrySet('search-index', { status: 'absent' })
 		indexStatusEl.textContent = 'Error: ' + err.message
 		buildIndexBtn.disabled = false
 	}
