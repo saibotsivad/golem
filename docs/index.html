@@ -46,13 +46,13 @@ button {
 	cursor: pointer;
 	margin-top: 0.5rem;
 }
+button + button { margin-left: 0.4rem; }
 button:disabled {
 	background: #888;
 	border-color: #888;
 	cursor: default;
 }
 
-/* ── shared status line ── */
 .section-status {
 	font-size: 0.85rem;
 	margin: 0.5rem 0 0;
@@ -62,9 +62,7 @@ button:disabled {
 
 /* ── §1 tokenization ── */
 #tokenize-results { margin-top: 1.2rem; }
-
 #token-summary { font-size: 0.85rem; margin-bottom: 0.6rem; }
-
 #token-visual {
 	font-size: 0.95rem;
 	line-height: 2;
@@ -73,14 +71,12 @@ button:disabled {
 	padding: 0.5rem;
 	margin-bottom: 0.8rem;
 }
-
 .tok { display: inline; white-space: pre; }
 .tok:nth-child(odd)  { background: #ddeedd; }
 .tok:nth-child(even) { background: #dde2ee; }
-
 #token-ids { font-size: 0.8rem; color: #444; word-break: break-all; }
 
-/* ── §2 next-token prediction ── */
+/* ── shared param row ── */
 .param-row {
 	display: flex;
 	flex-wrap: wrap;
@@ -90,23 +86,19 @@ button:disabled {
 	align-items: baseline;
 }
 .param-row label { display: flex; align-items: baseline; gap: 0.4rem; }
+.param-row select,
 .param-row input[type=number] {
 	font-family: inherit;
 	font-size: 0.9rem;
-	width: 5rem;
 	padding: 0.15rem 0.3rem;
 	border: 1px solid #000;
 }
-.param-row input[type=range] {
-	width: 8rem;
-	vertical-align: middle;
-}
+.param-row input[type=number] { width: 5rem; }
 .param-note { font-size: 0.8rem; color: #555; margin-top: 0.3rem; }
 
+/* ── §2 next-token prediction ── */
 #predict-results { margin-top: 1.2rem; }
-
 #pred-header { font-size: 0.85rem; margin-bottom: 0.5rem; color: #444; }
-
 .pred-row {
 	display: grid;
 	grid-template-columns: 16ch 1fr 5.5ch;
@@ -124,18 +116,56 @@ button:disabled {
 	text-align: right;
 	padding-right: 0.4rem;
 	border-right: 1px solid #ccc;
-	color: #000;
 }
 .pred-bar-wrap { background: #e8e8e8; height: 1em; }
 .pred-bar      { background: #222; height: 100%; }
 .pred-pct      { text-align: right; color: #444; }
+
+/* ── §3 sampling ── */
+#sample-output {
+	margin-top: 1.2rem;
+	border: 1px solid #ccc;
+	padding: 0.5rem;
+	font-size: 0.95rem;
+	line-height: 2;
+	word-break: break-all;
+}
+.gen-prompt { color: #888; }
+/* alternating warm/cool tints for generated tokens — distinct from §1 greens/blues */
+.gen-tok   { display: inline; white-space: pre; }
+.gen-tok-a { background: #fdeedd; }
+.gen-tok-b { background: #ddeef8; }
+#sample-meta { font-size: 0.8rem; color: #555; margin-top: 0.5rem; }
+
+/* ── §4 embeddings ── */
+#embed-results { margin-top: 1.2rem; }
+.embed-row {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	margin-bottom: 0.4rem;
+}
+.embed-label { font-size: 0.85rem; color: #555; width: 1.4rem; flex-shrink: 0; }
+.embed-canvas {
+	display: block;
+	border: 1px solid #ccc;
+	image-rendering: pixelated;
+	width: 100%;
+	height: 24px;
+}
+#embed-similarity {
+	margin-top: 0.8rem;
+	font-size: 1rem;
+}
+#embed-note { font-size: 0.8rem; color: #555; margin-top: 0.2rem; }
 </style>
 </head>
 <body>
 
 <h1>golem</h1>
 <p>Proof-of-concept demos of AI core technologies, running entirely in the browser.<br>
-<small>Updated <span id="updated">2026-03-29T06:03:09.490Z</span></small></p>
+<small>Updated <span id="updated">2026-03-29T06:22:27.067Z</span></small></p>
+
 
 <!-- ════════════════════════════════════════════
      §1 — Tokenization
@@ -169,6 +199,7 @@ button:disabled {
 	At each step, a language model produces a <em>probability distribution</em> over every token in its
 	vocabulary — not a single answer. This demo runs <strong>GPT-2</strong> (quantized, ~81 MB, cached after
 	first download) fully in-browser and shows that raw distribution for the token that would follow your input.
+	Click any row to append that token and recalculate.
 </p>
 
 <form id="predict-form">
@@ -181,7 +212,7 @@ button:disabled {
 			<input type="number" id="top-n" value="20" min="5" max="100" step="1"> tokens
 		</label>
 	</div>
-	<p class="param-note">Temperature &lt; 1 sharpens the distribution (fewer candidates dominate); &gt; 1 flattens it (probabilities become more uniform).</p>
+	<p class="param-note">Temperature &lt; 1 sharpens the distribution; &gt; 1 flattens it.</p>
 	<button type="submit" id="predict-btn">Predict next token  [downloads ~81 MB on first run]</button>
 </form>
 <div id="predict-status" class="section-status"></div>
@@ -192,17 +223,111 @@ button:disabled {
 </div>
 
 
+<!-- ════════════════════════════════════════════
+     §3 — Sampling Strategies
+     ════════════════════════════════════════════ -->
+<h2>§3 — Sampling Strategies</h2>
+<p>
+	Autoregressive generation is a loop: run the model, get a distribution, <em>pick</em> a token, append
+	it, repeat. How you pick determines the character of the output. The four strategies below all operate
+	on the same probability distribution from §2.
+</p>
+<p class="param-note">
+	<strong>Greedy</strong> — always take the highest-probability token. Deterministic; tends toward
+	repetitive, "safe" text.<br>
+	<strong>Temperature</strong> — sample from the full distribution. Higher temperature = more random.<br>
+	<strong>Top-k</strong> — restrict sampling to the k most probable tokens, then sample.<br>
+	<strong>Top-p (nucleus)</strong> — restrict sampling to the smallest set of tokens whose cumulative
+	probability ≥ p, then sample.
+</p>
+
+<form id="sample-form">
+	<textarea id="sample-input" placeholder="Enter a prompt…">The quick brown fox</textarea>
+	<div class="param-row">
+		<label>Strategy
+			<select id="strategy">
+				<option value="greedy">greedy</option>
+				<option value="temperature" selected>temperature</option>
+				<option value="topk">top-k</option>
+				<option value="topp">top-p (nucleus)</option>
+			</select>
+		</label>
+		<label id="param-temp-label">Temperature
+			<input type="number" id="sample-temp" value="1.0" min="0.1" max="5.0" step="0.1">
+		</label>
+		<label id="param-k-label" hidden>K
+			<input type="number" id="sample-k" value="40" min="1" max="500" step="1">
+		</label>
+		<label id="param-p-label" hidden>P
+			<input type="number" id="sample-p" value="0.9" min="0.01" max="1.0" step="0.01">
+		</label>
+		<label>Max tokens
+			<input type="number" id="sample-max" value="40" min="1" max="200" step="1">
+		</label>
+	</div>
+	<button type="submit" id="sample-btn">Generate  [uses same ~81 MB model as §2]</button>
+	<button type="button" id="sample-stop-btn" disabled>Stop</button>
+</form>
+<div id="sample-status" class="section-status"></div>
+
+<div id="sample-output" hidden>
+	<div id="sample-text"></div>
+	<div id="sample-meta"></div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     §4 — Embeddings
+     ════════════════════════════════════════════ -->
+<h2>§4 — Embeddings</h2>
+<p>
+	An embedding encodes text as a point in high-dimensional space: semantically similar texts land
+	near each other regardless of surface wording. This demo uses
+	<a href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2" target="_blank" rel="noopener">all-MiniLM-L6-v2</a>
+	(~23 MB quantized) to produce 384-dimensional sentence vectors, then measures their
+	<strong>cosine similarity</strong> — the angle between the two vectors in that space.
+</p>
+<p class="param-note">
+	Each bar below is the full 384-dimensional vector visualized left-to-right:
+	<span style="background:#88aaff;padding:0 0.3em;">blue = positive</span>,
+	<span style="background:#ff8888;padding:0 0.3em;">red = negative</span>.
+	Similar sentences produce similar-looking patterns.
+</p>
+
+<form id="embed-form">
+	<label style="font-size:0.85rem">A</label>
+	<textarea id="embed-a" style="min-height:3.5rem">A dog ran across the field.</textarea>
+	<label style="font-size:0.85rem;margin-top:0.5rem;display:block">B</label>
+	<textarea id="embed-b" style="min-height:3.5rem">The puppy sprinted through the meadow.</textarea>
+	<button type="submit" id="embed-btn">Compare embeddings  [downloads ~23 MB on first run]</button>
+</form>
+<div id="embed-status" class="section-status"></div>
+
+<div id="embed-results" hidden>
+	<div class="embed-row">
+		<span class="embed-label">A</span>
+		<canvas id="canvas-a" class="embed-canvas" width="384" height="24"></canvas>
+	</div>
+	<div class="embed-row">
+		<span class="embed-label">B</span>
+		<canvas id="canvas-b" class="embed-canvas" width="384" height="24"></canvas>
+	</div>
+	<div id="embed-similarity"></div>
+	<div id="embed-note"></div>
+</div>
+
+
 <script type="module">
-import { AutoTokenizer, GPT2LMHeadModel, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+import { AutoTokenizer, GPT2LMHeadModel, pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
 
 env.allowLocalModels = false
 
-// ── shared tokenizer (used by both sections) ──────────────────────────────
+// ── shared tokenizer ───────────────────────────────────────────────────────
 let tokenizer = null
 
-const tokStatus  = document.getElementById('tokenize-status')
-const tokBtn     = document.getElementById('tokenize-btn')
-const tokInput   = document.getElementById('tokenize-input')
+const tokStatus = document.getElementById('tokenize-status')
+const tokBtn    = document.getElementById('tokenize-btn')
+const tokInput  = document.getElementById('tokenize-input')
 
 AutoTokenizer.from_pretrained('Xenova/gpt2')
 	.then(tok => {
@@ -211,9 +336,44 @@ AutoTokenizer.from_pretrained('Xenova/gpt2')
 		tokBtn.disabled = false
 		tokInput.focus()
 	})
-	.catch(err => {
-		tokStatus.textContent = 'Failed to load tokenizer: ' + err.message
+	.catch(err => { tokStatus.textContent = 'Failed to load tokenizer: ' + err.message })
+
+
+// ── shared GPT-2 model (§2 and §3) ────────────────────────────────────────
+let lmModel = null
+
+async function ensureModel(onProgress) {
+	if (lmModel) return lmModel
+	lmModel = await GPT2LMHeadModel.from_pretrained('Xenova/gpt2', {
+		quantized: true,
+		progress_callback: info => { if (onProgress) onProgress(info) },
 	})
+	return lmModel
+}
+
+// ── shared helpers ─────────────────────────────────────────────────────────
+function softmaxWithTemp(logits, temp) {
+	const n = logits.length
+	let max = -Infinity
+	for (let i = 0; i < n; i++) if (logits[i] > max) max = logits[i]
+	const out = new Float64Array(n)
+	let sum = 0
+	for (let i = 0; i < n; i++) { out[i] = Math.exp((logits[i] - max) / temp); sum += out[i] }
+	for (let i = 0; i < n; i++) out[i] /= sum
+	return out
+}
+
+function getLogits(output) {
+	const { logits } = output
+	const seqLen    = logits.dims[1]
+	const vocabSize = logits.dims[2]
+	const offset    = (seqLen - 1) * vocabSize
+	return { lastLogits: logits.data.subarray(offset, offset + vocabSize), seqLen, vocabSize }
+}
+
+function escHtml(s) {
+	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
 
 
 // ── §1 tokenization ───────────────────────────────────────────────────────
@@ -228,18 +388,13 @@ document.getElementById('tokenize-form').addEventListener('submit', e => {
 	if (!text || !tokenizer) return
 
 	const encoded = tokenizer(text, { add_special_tokens: false })
-	const ids = Array.from(encoded.input_ids.data)
+	const ids   = Array.from(encoded.input_ids.data)
 	const pieces = ids.map(id => tokenizer.decode([id], { skip_special_tokens: false }))
 
 	tokSummary.textContent = `${ids.length} token${ids.length !== 1 ? 's' : ''}`
-
 	tokVisual.innerHTML = pieces
-		.map((piece, i) => {
-			const safe = piece.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-			return `<span class="tok" title="id\u00a0${ids[i]}">${safe}</span>`
-		})
+		.map((piece, i) => `<span class="tok" title="id\u00a0${ids[i]}">${escHtml(piece)}</span>`)
 		.join('')
-
 	tokIds.textContent = 'IDs: ' + ids.join(', ')
 	tokResults.hidden = false
 	tokStatus.textContent = ''
@@ -256,37 +411,6 @@ const predChart      = document.getElementById('pred-chart')
 const tempInput      = document.getElementById('temperature')
 const topNInput      = document.getElementById('top-n')
 
-let lmModel = null
-
-async function ensureModel() {
-	if (lmModel) return lmModel
-	lmModel = await GPT2LMHeadModel.from_pretrained('Xenova/gpt2', {
-		quantized: true,
-		progress_callback: info => {
-			if (info.status === 'progress') {
-				predictStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
-			} else if (info.status === 'done') {
-				predictStatus.textContent = 'Loading model into memory…'
-			}
-		},
-	})
-	return lmModel
-}
-
-function softmaxWithTemp(logits, temp) {
-	const n = logits.length
-	let max = -Infinity
-	for (let i = 0; i < n; i++) if (logits[i] > max) max = logits[i]
-	const out = new Float64Array(n)
-	let sum = 0
-	for (let i = 0; i < n; i++) {
-		out[i] = Math.exp((logits[i] - max) / temp)
-		sum += out[i]
-	}
-	for (let i = 0; i < n; i++) out[i] /= sum
-	return out
-}
-
 async function runPrediction() {
 	const text = predictInput.value
 	if (!text) return
@@ -298,35 +422,38 @@ async function runPrediction() {
 	predictStatus.textContent = 'Initializing…'
 
 	try {
-		const model = await ensureModel()
+		const model = await ensureModel(info => {
+			if (info.status === 'progress')
+				predictStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
+			else if (info.status === 'done')
+				predictStatus.textContent = 'Loading model into memory…'
+		})
 
 		predictStatus.textContent = 'Running inference…'
-
-		// Tokenize; truncate to GPT-2's 1024-token context window
 		const inputs = tokenizer(text, { truncation: true, max_length: 1024 })
 		const output = await model(inputs)
-
-		// logits shape: [1, seq_len, vocab_size]
-		const { logits } = output
-		const seqLen    = logits.dims[1]
-		const vocabSize = logits.dims[2]
-		const offset    = (seqLen - 1) * vocabSize
-		const lastLogits = logits.data.subarray(offset, offset + vocabSize)
-
+		const { lastLogits, seqLen, vocabSize } = getLogits(output)
 		const probs = softmaxWithTemp(lastLogits, temperature)
 
-		// Sort all vocab indices by probability descending, take top N
 		const indices = Array.from({ length: vocabSize }, (_, i) => i)
 		indices.sort((a, b) => probs[b] - probs[a])
-		const top = indices.slice(0, topN)
-
-		const topProbs = top.map(id => ({
-			id,
-			token: tokenizer.decode([id]),
-			prob: probs[id],
+		const topProbs = indices.slice(0, topN).map(id => ({
+			id, token: tokenizer.decode([id]), prob: probs[id],
 		}))
 
-		renderChart(topProbs, temperature, seqLen)
+		const cumProb = (topProbs.reduce((s, t) => s + t.prob, 0) * 100).toFixed(1)
+		predHeader.textContent =
+			`top ${topProbs.length} of 50,257 tokens  ·  temperature: ${temperature}  ·  ` +
+			`input: ${seqLen} token${seqLen !== 1 ? 's' : ''}  ·  cumulative probability shown: ${cumProb}%`
+
+		predChart.innerHTML = topProbs.map(({ token, prob, id }) =>
+			`<div class="pred-row" data-id="${id}">` +
+			`<span class="pred-token" title="id\u00a0${id}">${escHtml(token)}</span>` +
+			`<div class="pred-bar-wrap"><div class="pred-bar" style="width:${(prob / topProbs[0].prob * 100).toFixed(1)}%"></div></div>` +
+			`<span class="pred-pct">${(prob * 100).toFixed(2)}%</span>` +
+			`</div>`
+		).join('')
+
 		predictResults.hidden = false
 		predictStatus.textContent = ''
 	} catch (err) {
@@ -337,42 +464,267 @@ async function runPrediction() {
 	}
 }
 
-document.getElementById('predict-form').addEventListener('submit', e => {
-	e.preventDefault()
-	runPrediction()
-})
+document.getElementById('predict-form').addEventListener('submit', e => { e.preventDefault(); runPrediction() })
 
 predChart.addEventListener('click', e => {
 	const row = e.target.closest('.pred-row')
 	if (!row || predictBtn.disabled) return
-	const id = parseInt(row.dataset.id)
-	predictInput.value += tokenizer.decode([id])
+	predictInput.value += tokenizer.decode([parseInt(row.dataset.id)])
 	runPrediction()
 })
 
-function renderChart(topProbs, temperature, inputTokens) {
-	const maxProb = topProbs[0].prob
 
-	// Compute cumulative probability covered by the shown tokens
-	const cumProb = (topProbs.reduce((s, t) => s + t.prob, 0) * 100).toFixed(1)
+// ── §3 sampling strategies ────────────────────────────────────────────────
+const sampleStatus  = document.getElementById('sample-status')
+const sampleBtn     = document.getElementById('sample-btn')
+const sampleStopBtn = document.getElementById('sample-stop-btn')
+const sampleInput   = document.getElementById('sample-input')
+const sampleOutput  = document.getElementById('sample-output')
+const sampleText    = document.getElementById('sample-text')
+const sampleMeta    = document.getElementById('sample-meta')
+const strategyEl    = document.getElementById('strategy')
+const sampleTempEl  = document.getElementById('sample-temp')
+const sampleKEl     = document.getElementById('sample-k')
+const samplePEl     = document.getElementById('sample-p')
+const sampleMaxEl   = document.getElementById('sample-max')
 
-	predHeader.textContent =
-		`top ${topProbs.length} of 50,257 tokens  ·  temperature: ${temperature}  ·  input: ${inputTokens} token${inputTokens !== 1 ? 's' : ''}  ·  cumulative probability shown: ${cumProb}%`
+// Show/hide strategy-specific params
+strategyEl.addEventListener('change', () => {
+	const s = strategyEl.value
+	document.getElementById('param-temp-label').hidden = s === 'greedy'
+	document.getElementById('param-k-label').hidden    = s !== 'topk'
+	document.getElementById('param-p-label').hidden    = s !== 'topp'
+})
 
-	predChart.innerHTML = topProbs.map(({ token, prob, id }) => {
-		const pct      = (prob * 100).toFixed(2)
-		const barWidth = (prob / maxProb * 100).toFixed(1)
-		const safe     = token
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-		return `<div class="pred-row" data-id="${id}">` +
-			`<span class="pred-token" title="id\u00a0${id}">${safe}</span>` +
-			`<div class="pred-bar-wrap"><div class="pred-bar" style="width:${barWidth}%"></div></div>` +
-			`<span class="pred-pct">${pct}%</span>` +
-			`</div>`
-	}).join('')
+let stopRequested = false
+sampleStopBtn.addEventListener('click', () => { stopRequested = true })
+
+function sampleToken(probs, strategy, temp, k, p) {
+	const n = probs.length
+
+	if (strategy === 'greedy') {
+		let best = 0
+		for (let i = 1; i < n; i++) if (probs[i] > probs[best]) best = i
+		return { id: best, prob: probs[best] }
+	}
+
+	if (strategy === 'temperature') {
+		// Sample directly from the distribution (temperature already baked in via softmax)
+		let r = Math.random()
+		let cum = 0
+		for (let i = 0; i < n; i++) {
+			cum += probs[i]
+			if (r <= cum) return { id: i, prob: probs[i] }
+		}
+		return { id: n - 1, prob: probs[n - 1] }
+	}
+
+	// top-k or top-p: sort by probability descending, then take candidates
+	const sorted = Array.from({ length: n }, (_, i) => i)
+	sorted.sort((a, b) => probs[b] - probs[a])
+
+	let candidates
+	if (strategy === 'topk') {
+		candidates = sorted.slice(0, k)
+	} else { // topp
+		candidates = []
+		let cumSum = 0
+		for (const i of sorted) {
+			candidates.push(i)
+			cumSum += probs[i]
+			if (cumSum >= p) break
+		}
+	}
+
+	let sum = 0
+	for (const i of candidates) sum += probs[i]
+	let r = Math.random() * sum
+	for (const i of candidates) {
+		r -= probs[i]
+		if (r <= 0) return { id: i, prob: probs[i] }
+	}
+	const last = candidates[candidates.length - 1]
+	return { id: last, prob: probs[last] }
 }
+
+document.getElementById('sample-form').addEventListener('submit', async e => {
+	e.preventDefault()
+	const prompt   = sampleInput.value
+	if (!prompt) return
+
+	const strategy = strategyEl.value
+	const temp     = Math.max(0.01, parseFloat(sampleTempEl.value) || 1.0)
+	const k        = Math.max(1, parseInt(sampleKEl.value) || 40)
+	const p        = Math.max(0.01, Math.min(1, parseFloat(samplePEl.value) || 0.9))
+	const maxTok   = Math.max(1, Math.min(200, parseInt(sampleMaxEl.value) || 40))
+
+	sampleBtn.disabled    = true
+	sampleStopBtn.disabled = false
+	stopRequested          = false
+	sampleStatus.textContent = 'Initializing…'
+
+	// Prepare output area
+	sampleOutput.hidden = false
+	sampleText.innerHTML = ''
+	const promptSpan = document.createElement('span')
+	promptSpan.className = 'gen-prompt'
+	promptSpan.textContent = prompt
+	sampleText.appendChild(promptSpan)
+	sampleMeta.textContent = ''
+
+	try {
+		const model = await ensureModel(info => {
+			if (info.status === 'progress')
+				sampleStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
+			else if (info.status === 'done')
+				sampleStatus.textContent = 'Loading model into memory…'
+		})
+
+		const GPT2_EOS = 50256
+		let generatedIds = []
+		let stepCount    = 0
+		let stopReason   = 'limit reached'
+
+		while (stepCount < maxTok) {
+			if (stopRequested) { stopReason = 'stopped'; break }
+
+			sampleStatus.textContent = `Generating token ${stepCount + 1} / ${maxTok}…`
+
+			const currentText = prompt + (generatedIds.length ? tokenizer.decode(generatedIds) : '')
+			const inputs = tokenizer(currentText, { truncation: true, max_length: 1024 })
+			const output = await model(inputs)
+			const { lastLogits } = getLogits(output)
+
+			const effectiveTemp = strategy === 'greedy' ? 1.0 : temp
+			const probs = softmaxWithTemp(lastLogits, effectiveTemp)
+			const { id, prob } = sampleToken(probs, strategy, temp, k, p)
+
+			if (id === GPT2_EOS) { stopReason = 'end-of-sequence token'; break }
+
+			generatedIds.push(id)
+			const tokenText = tokenizer.decode([id])
+			const span = document.createElement('span')
+			span.className = `gen-tok gen-tok-${stepCount % 2 === 0 ? 'a' : 'b'}`
+			span.title = `${(prob * 100).toFixed(1)}%`
+			span.textContent = tokenText
+			sampleText.appendChild(span)
+
+			stepCount++
+		}
+
+		const strategyLabel = strategy === 'topk' ? `top-k (k=${k})` :
+		                      strategy === 'topp' ? `top-p (p=${p})` :
+		                      strategy === 'temperature' ? `temperature (${temp})` : 'greedy'
+		sampleMeta.textContent = `${stepCount} token${stepCount !== 1 ? 's' : ''} generated  ·  strategy: ${strategyLabel}  ·  ${stopReason}`
+		sampleStatus.textContent = ''
+	} catch (err) {
+		sampleStatus.textContent = 'Error: ' + err.message
+		console.error(err)
+	} finally {
+		sampleBtn.disabled     = false
+		sampleStopBtn.disabled = true
+	}
+})
+
+
+// ── §4 embeddings ─────────────────────────────────────────────────────────
+const embedStatus  = document.getElementById('embed-status')
+const embedBtn     = document.getElementById('embed-btn')
+const embedResults = document.getElementById('embed-results')
+const embedSimEl   = document.getElementById('embed-similarity')
+const embedNoteEl  = document.getElementById('embed-note')
+const canvasA      = document.getElementById('canvas-a')
+const canvasB      = document.getElementById('canvas-b')
+
+let embedder = null
+
+async function ensureEmbedder() {
+	if (embedder) return embedder
+	embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+		quantized: true,
+		progress_callback: info => {
+			if (info.status === 'progress')
+				embedStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
+			else if (info.status === 'done')
+				embedStatus.textContent = 'Loading model into memory…'
+		},
+	})
+	return embedder
+}
+
+async function embed(text) {
+	const ext = await ensureEmbedder()
+	const out = await ext(text, { pooling: 'mean', normalize: true })
+	return Array.from(out.data)
+}
+
+function cosine(a, b) {
+	let dot = 0, na = 0, nb = 0
+	for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] ** 2; nb += b[i] ** 2 }
+	return dot / (Math.sqrt(na) * Math.sqrt(nb))
+}
+
+function drawEmbedding(canvas, vec, scale) {
+	const ctx = canvas.getContext('2d')
+	const w = canvas.width, h = canvas.height, n = vec.length
+	ctx.clearRect(0, 0, w, h)
+	for (let i = 0; i < n; i++) {
+		const x0 = Math.floor(i * w / n)
+		const x1 = Math.floor((i + 1) * w / n)
+		const v  = vec[i] / scale  // [-1, 1]
+		let r, g, b
+		if (v >= 0) {
+			const t = Math.min(1, v)
+			r = Math.round(255 * (1 - t * 0.5))
+			g = Math.round(255 * (1 - t * 0.5))
+			b = 255
+		} else {
+			const t = Math.min(1, -v)
+			r = 255
+			g = Math.round(255 * (1 - t * 0.5))
+			b = Math.round(255 * (1 - t * 0.5))
+		}
+		ctx.fillStyle = `rgb(${r},${g},${b})`
+		ctx.fillRect(x0, 0, Math.max(1, x1 - x0), h)
+	}
+}
+
+document.getElementById('embed-form').addEventListener('submit', async e => {
+	e.preventDefault()
+	const textA = document.getElementById('embed-a').value
+	const textB = document.getElementById('embed-b').value
+	if (!textA || !textB) return
+
+	embedBtn.disabled = true
+	embedStatus.textContent = 'Initializing…'
+
+	try {
+		const [vecA, vecB] = await Promise.all([embed(textA), embed(textB)])
+
+		// Use the same scale for both canvases so patterns are comparable
+		const scale = Math.max(...vecA.map(Math.abs), ...vecB.map(Math.abs))
+		drawEmbedding(canvasA, vecA, scale)
+		drawEmbedding(canvasB, vecB, scale)
+
+		const sim = cosine(vecA, vecB)
+		const pct = (sim * 100).toFixed(1)
+		embedSimEl.textContent = `Cosine similarity: ${sim.toFixed(4)}  (${pct}%)`
+
+		const note = sim > 0.8 ? 'very similar'
+		           : sim > 0.6 ? 'related'
+		           : sim > 0.4 ? 'loosely related'
+		           :             'dissimilar'
+		embedNoteEl.textContent = `${note}  ·  384 dimensions  ·  model: all-MiniLM-L6-v2`
+
+		embedResults.hidden = false
+		embedStatus.textContent = ''
+	} catch (err) {
+		embedStatus.textContent = 'Error: ' + err.message
+		console.error(err)
+	} finally {
+		embedBtn.disabled = false
+	}
+})
 </script>
 
 </body>
