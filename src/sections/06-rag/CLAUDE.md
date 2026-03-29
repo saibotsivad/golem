@@ -7,7 +7,7 @@ The corpus is 20 passages (2–3 sentences each) about ML/AI concepts, stored as
 ## Cross-section dependencies
 
 - `idbGet` / `idbPut` — defined in `shared.js`, available to all sections
-- `SAMPLING_WORKER_CODE` — defined in §3 (`03-sampling/section.js`), reused verbatim to create `ragWorker` (a separate worker instance to avoid concurrent-use conflicts with §3's `samplingWorker`)
+- `SAMPLING_WORKER_CODE` — defined in `shared.js`, reused verbatim to create `ragWorker` (a separate worker instance to avoid concurrent-use conflicts with §3's `samplingWorker`)
 
 ## Shared state used
 

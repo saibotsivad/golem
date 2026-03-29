@@ -119,7 +119,6 @@ Call `registrySet(key, update)` to update an entry and notify all subscribers. C
 
 ### Shared variables
 
-- `tokenizer` — GPT-2 BPE tokenizer (`AutoTokenizer`); set by §1 via `golem.loadTokenizer`, read by §2 and §3.
 - `lmModel` — GPT-2 causal LM (`GPT2LMHeadModel`); lazily loaded via `ensureModel(onProgress)`.
 
 ### Shared helpers
@@ -136,6 +135,7 @@ Call `registrySet(key, update)` to update an entry and notify all subscribers. C
 - `embed(text)` — calls `ensureEmbedder()` then returns `Array<number>` (384 dims). Prefer `golem.embed()` in section code.
 - `idbGet(key)` — reads from the `'golem'` DB / `'search'` store; used by §5 and §6 to cache embedding indices.
 - `idbPut(key, value)` — writes to the `'golem'` DB / `'search'` store.
+- `SAMPLING_WORKER_CODE` — GPT-2 generation worker source string; used by §3 and §6 to each create their own independent `Worker` instance.
 
 ### Rules for adding to shared.js
 

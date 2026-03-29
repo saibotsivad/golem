@@ -4,9 +4,9 @@ Autoregressive text generation loop using the same GPT-2 model as §2. Supports 
 
 ## Shared state used
 
-- `tokenizer` (set by §1) — encodes running context, decodes generated token IDs
 - `ensureModel(onProgress)` (shared.js) — same cached model instance as §2
 - `softmaxWithTemp`, `getLogits` (shared.js)
+- `SAMPLING_WORKER_CODE` (shared.js) — worker source string; also used by §6
 
 ## Key implementation note
 

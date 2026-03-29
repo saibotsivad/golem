@@ -1,7 +1,7 @@
 // ── §6 Retrieval-Augmented Generation ─────────────────────────────────────
 // idbGet / idbPut defined in shared.js and available to all sections.
-// SAMPLING_WORKER_CODE / getSamplingWorker defined in §3 (03-sampling/section.js).
-
+// SAMPLING_WORKER_CODE defined in shared.js (also used by §3).
+{
 const RAG_CORPUS_VERSION = 'rag-v1'
 const RAG_DIMS = 384
 
@@ -99,7 +99,6 @@ ragBuildBtn.addEventListener('click', async () => {
 let ragWorker = null
 function getRagWorker() {
 	if (!ragWorker) {
-		// Reuse SAMPLING_WORKER_CODE defined in §3 — same GPT-2 inference logic.
 		const blob = new Blob([SAMPLING_WORKER_CODE], { type: 'text/javascript' })
 		ragWorker = new Worker(URL.createObjectURL(blob), { type: 'module' })
 	}
@@ -251,3 +250,4 @@ document.getElementById('rag-form').addEventListener('submit', async e => {
 
 	worker.postMessage({ type: 'generate', prompt: fullPrompt, strategy: 'temperature', temp, k: 40, p: 0.9, maxTok })
 })
+}

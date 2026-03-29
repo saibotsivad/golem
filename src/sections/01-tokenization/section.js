@@ -1,8 +1,10 @@
 // ── §1 tokenization ───────────────────────────────────────────────────────
+{
 const tokStatus = document.getElementById('tokenize-status')
 const tokBtn    = document.getElementById('tokenize-btn')
 const tokInput  = document.getElementById('tokenize-input')
 
+let tokenizer = null
 golem.loadTokenizer('Xenova/gpt2', false)
 	.then(tok => {
 		tokenizer = tok
@@ -36,3 +38,4 @@ document.getElementById('tokenize-form').addEventListener('submit', e => {
 	tokResults.hidden = false
 	tokStatus.textContent = ''
 })
+}

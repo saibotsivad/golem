@@ -43,10 +43,6 @@ async function probeTransformersCache() {
 }
 probeTransformersCache()
 
-// ── shared tokenizer ───────────────────────────────────────────────────────
-let tokenizer = null
-
-
 // ── shared GPT-2 model (§2 and §3) ────────────────────────────────────────
 let lmModel = null
 
@@ -255,6 +251,141 @@ async function idbPut(key, value) {
 		})
 	} catch {}
 }
+
+// ── GPT-2 sampling worker source ──────────────────────────────────────────
+// Shared by §3 (sampling) and §6 (RAG) — each section creates its own Worker
+// instance from this string so they never contend over the same worker.
+const SAMPLING_WORKER_CODE = `
+import { AutoTokenizer, GPT2LMHeadModel, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+
+env.allowLocalModels = false
+
+let tokenizer = null
+let lmModel   = null
+let stopRequested = false
+
+function softmaxWithTemp(logits, temp) {
+	const n = logits.length
+	let max = -Infinity
+	for (let i = 0; i < n; i++) if (logits[i] > max) max = logits[i]
+	const out = new Float64Array(n)
+	let sum = 0
+	for (let i = 0; i < n; i++) { out[i] = Math.exp((logits[i] - max) / temp); sum += out[i] }
+	for (let i = 0; i < n; i++) out[i] /= sum
+	return out
+}
+
+function getLogits(output) {
+	const { logits } = output
+	const seqLen    = logits.dims[1]
+	const vocabSize = logits.dims[2]
+	const offset    = (seqLen - 1) * vocabSize
+	return { lastLogits: logits.data.subarray(offset, offset + vocabSize) }
+}
+
+function sampleToken(probs, strategy, temp, k, p) {
+	const n = probs.length
+
+	if (strategy === 'greedy') {
+		let best = 0
+		for (let i = 1; i < n; i++) if (probs[i] > probs[best]) best = i
+		return { id: best, prob: probs[best] }
+	}
+
+	if (strategy === 'temperature') {
+		let r = Math.random(), cum = 0
+		for (let i = 0; i < n; i++) {
+			cum += probs[i]
+			if (r <= cum) return { id: i, prob: probs[i] }
+		}
+		return { id: n - 1, prob: probs[n - 1] }
+	}
+
+	const sorted = Array.from({ length: n }, (_, i) => i).sort((a, b) => probs[b] - probs[a])
+	let candidates
+	if (strategy === 'topk') {
+		candidates = sorted.slice(0, k)
+	} else {
+		candidates = []
+		let cumSum = 0
+		for (const i of sorted) {
+			candidates.push(i)
+			cumSum += probs[i]
+			if (cumSum >= p) break
+		}
+	}
+
+	let sum = 0
+	for (const i of candidates) sum += probs[i]
+	let r = Math.random() * sum
+	for (const i of candidates) {
+		r -= probs[i]
+		if (r <= 0) return { id: i, prob: probs[i] }
+	}
+	const last = candidates[candidates.length - 1]
+	return { id: last, prob: probs[last] }
+}
+
+self.onmessage = async ({ data }) => {
+	if (data.type === 'stop') { stopRequested = true; return }
+	if (data.type !== 'generate') return
+
+	stopRequested = false
+	const { prompt, strategy, temp, k, p, maxTok } = data
+
+	try {
+		if (!tokenizer) {
+			self.postMessage({ type: 'status', text: 'Loading tokenizer\u2026' })
+			tokenizer = await AutoTokenizer.from_pretrained('Xenova/gpt2')
+		}
+
+		if (!lmModel) {
+			lmModel = await GPT2LMHeadModel.from_pretrained('Xenova/gpt2', {
+				quantized: true,
+				progress_callback: info => {
+					if (info.status === 'progress')
+						self.postMessage({ type: 'status', text: 'Downloading model: ' + info.progress.toFixed(0) + '%' })
+					else if (info.status === 'done')
+						self.postMessage({ type: 'status', text: 'Loading model into memory\u2026' })
+				},
+			})
+		}
+
+		const GPT2_EOS  = 50256
+		let generatedIds = []
+		let stepCount    = 0
+		let stopReason   = 'limit reached'
+
+		while (stepCount < maxTok) {
+			await new Promise(resolve => setTimeout(resolve, 0))
+			if (stopRequested) { stopReason = 'stopped'; break }
+			self.postMessage({ type: 'status', text: 'Generating token ' + (stepCount + 1) + ' / ' + maxTok + '\u2026' })
+
+			const currentText = prompt + (generatedIds.length ? tokenizer.decode(generatedIds) : '')
+			const inputs = tokenizer(currentText, { truncation: true, max_length: 1024 })
+			const output = await lmModel(inputs)
+			const { lastLogits } = getLogits(output)
+
+			const effectiveTemp = strategy === 'greedy' ? 1.0 : temp
+			const probs = softmaxWithTemp(lastLogits, effectiveTemp)
+			const { id, prob } = sampleToken(probs, strategy, temp, k, p)
+
+			if (id === GPT2_EOS) { stopReason = 'end-of-sequence token'; break }
+
+			generatedIds.push(id)
+			self.postMessage({ type: 'token', text: tokenizer.decode([id]), prob, step: stepCount })
+			stepCount++
+		}
+
+		const strategyLabel = strategy === 'topk' ? 'top-k (k=' + k + ')' :
+		                      strategy === 'topp' ? 'top-p (p=' + p + ')' :
+		                      strategy === 'temperature' ? 'temperature (' + temp + ')' : 'greedy'
+		self.postMessage({ type: 'done', stepCount, strategyLabel, stopReason })
+	} catch (err) {
+		self.postMessage({ type: 'error', message: err.message })
+	}
+}
+`
 
 function drawEmbeddingGrid(canvas, vecs, count, dims, totalRows) {
 	const ctx = canvas.getContext('2d')

@@ -1,4 +1,5 @@
 // ── §4 embeddings ─────────────────────────────────────────────────────────
+{
 const embedStatus  = document.getElementById('embed-status')
 const embedBtn     = document.getElementById('embed-btn')
 const embedResults = document.getElementById('embed-results')
@@ -51,3 +52,4 @@ document.getElementById('embed-form').addEventListener('submit', async e => {
 		embedBtn.disabled = false
 	}
 })
+}

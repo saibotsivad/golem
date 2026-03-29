@@ -1,4 +1,5 @@
 // ── §5 semantic search ─────────────────────────────────────────────────────
+{
 const CORPUS_VERSION = 'v1'
 const DIMS = 384
 const CORPUS = [
@@ -160,3 +161,4 @@ document.getElementById('search-form').addEventListener('submit', async e => {
 		searchBtn.disabled = false
 	}
 })
+}

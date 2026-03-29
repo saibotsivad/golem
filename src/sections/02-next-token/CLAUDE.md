@@ -4,7 +4,7 @@ Runs GPT-2 inference in-browser and displays the full probability distribution o
 
 ## Shared state used
 
-- `tokenizer` (set by §1) — tokenizes the input prompt
+- `tokenizer` — block-local; loaded via `golem.loadTokenizer('Xenova/gpt2', false)` at section init (returns cached instance if §1 already loaded it)
 - `golem.loadModel(onProgress)` — lazily loads the ~81 MB quantized GPT-2 model
 - `softmaxWithTemp`, `getLogits`, `escHtml` (shared.js)
 

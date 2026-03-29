@@ -1,4 +1,8 @@
 // ── §2 next-token prediction ──────────────────────────────────────────────
+{
+let tokenizer = null
+golem.loadTokenizer('Xenova/gpt2', false).then(tok => { tokenizer = tok })
+
 const predictStatus  = document.getElementById('predict-status')
 const predictBtn     = document.getElementById('predict-btn')
 const predictInput   = document.getElementById('predict-input')
@@ -69,3 +73,4 @@ predChart.addEventListener('click', e => {
 	predictInput.value += tokenizer.decode([parseInt(row.dataset.id)])
 	runPrediction()
 })
+}
