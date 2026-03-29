@@ -57,17 +57,19 @@ let ragCorpusVecs = null  // Float32Array [RAG_CORPUS.length × RAG_DIMS]
 
 // ── load cached index on page start ───────────────────────────────────────
 idbGet(RAG_CORPUS_VERSION).then(cached => {
-	if (!cached) return
+	if (!cached) { registrySet('rag-index', { status: 'absent' }); return }
 	ragCorpusVecs = cached
+	registrySet('rag-index', { status: 'ready' })
 	ragIndexStatus.textContent = `${RAG_CORPUS.length} passages (cached)`
 	ragBtn.disabled = false
-}).catch(() => {})
+}).catch(() => { registrySet('rag-index', { status: 'absent' }) })
 
 // ── build index ────────────────────────────────────────────────────────────
 ragBuildBtn.addEventListener('click', async () => {
 	ragBuildBtn.disabled = true
 	ragBtn.disabled      = true
 	ragIndexStatus.textContent = 'Initializing…'
+	registrySet('rag-index', { status: 'loading' })
 	try {
 		await ensureEmbedder(info => {
 			if (info.status === 'progress')
@@ -83,10 +85,12 @@ ragBuildBtn.addEventListener('click', async () => {
 		}
 		ragCorpusVecs = allVecs
 		await idbPut(RAG_CORPUS_VERSION, ragCorpusVecs)
+		registrySet('rag-index', { status: 'ready' })
 		ragIndexStatus.textContent = `${RAG_CORPUS.length} passages indexed and cached`
 		ragBtn.disabled      = false
 		ragBuildBtn.disabled = false
 	} catch (err) {
+		registrySet('rag-index', { status: 'error' })
 		ragIndexStatus.textContent = 'Error: ' + err.message
 		ragBuildBtn.disabled = false
 	}

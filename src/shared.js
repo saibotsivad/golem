@@ -13,6 +13,7 @@ const REGISTRY = {
 	'gpt2-lm':        { label: 'GPT-2 LM',             size: '~81 MB',  status: 'unknown', progress: null },
 	'minilm':         { label: 'all-MiniLM-L6-v2',     size: '~23 MB',  status: 'unknown', progress: null },
 	'search-index':   { label: 'Semantic search index', size: null,      status: 'unknown', progress: null },
+	'rag-index':      { label: 'RAG index',             size: null,      status: 'unknown', progress: null },
 }
 const _registryListeners = []
 function registrySubscribe(fn) { _registryListeners.push(fn) }
