@@ -12,6 +12,6 @@
   },
   "type": "module",
   "scripts": {
-    "build": "echo \"no build yet\""
+    "build": "node scripts/update-date.js"
   }
 }
