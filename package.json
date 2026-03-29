@@ -12,6 +12,10 @@
   },
   "type": "module",
   "scripts": {
+    "dev": "http-server docs -c-1",
     "build": "node scripts/update-date.js"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
   }
 }

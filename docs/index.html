@@ -1,2 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>golem — AI Technology Demos</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+	font-family: 'Courier New', Courier, monospace;
+	font-size: 16px;
+	line-height: 1.5;
+	max-width: 860px;
+	margin: 0 auto;
+	padding: 2rem 1.5rem 4rem;
+	background: #fff;
+	color: #000;
+}
+
+h1 { font-size: 1.4rem; margin: 0 0 0.2rem; }
+h2 { font-size: 1.1rem; margin: 2.5rem 0 0.5rem; border-bottom: 1px solid #000; padding-bottom: 0.2rem; }
+p { margin: 0.4rem 0 0.8rem; font-size: 0.9rem; }
+a { color: #000; }
+small { font-size: 0.8rem; color: #555; }
+
+textarea {
+	width: 100%;
+	min-height: 7rem;
+	font-family: inherit;
+	font-size: 0.95rem;
+	padding: 0.5rem;
+	border: 1px solid #000;
+	resize: vertical;
+	display: block;
+}
+textarea:focus { outline: 2px solid #000; outline-offset: 1px; }
+
+button {
+	font-family: inherit;
+	font-size: 0.9rem;
+	padding: 0.3rem 1.2rem;
+	border: 1px solid #000;
+	background: #000;
+	color: #fff;
+	cursor: pointer;
+	margin-top: 0.5rem;
+}
+button:disabled {
+	background: #888;
+	border-color: #888;
+	cursor: default;
+}
+
+#tokenize-status {
+	font-size: 0.85rem;
+	margin: 0.5rem 0 0;
+	min-height: 1.3em;
+	color: #555;
+}
+
+#tokenize-results { margin-top: 1.2rem; }
+
+#token-summary {
+	font-size: 0.85rem;
+	margin-bottom: 0.6rem;
+}
+
+#token-visual {
+	font-size: 0.95rem;
+	line-height: 2;
+	word-break: break-all;
+	border: 1px solid #ccc;
+	padding: 0.5rem;
+	margin-bottom: 0.8rem;
+}
+
+/* alternating token highlight — two very muted tints */
+.tok { display: inline; white-space: pre; }
+.tok:nth-child(odd)  { background: #ddeedd; }
+.tok:nth-child(even) { background: #dde2ee; }
+
+#token-ids {
+	font-size: 0.8rem;
+	color: #444;
+	word-break: break-all;
+}
+</style>
+</head>
+<body>
+
 <h1>golem</h1>
-<p>updated <span id="updated">2026-03-29T05:31:05.740Z</span></p>
+<p>Proof-of-concept demos of AI core technologies, running entirely in the browser.<br>
+<small>Updated <span id="updated">2026-03-29T05:46:24.745Z</span></small></p>
+
+<h2>Tokenization</h2>
+<p>
+	Tokenization is how large language models break text into discrete units before processing.
+	This demo uses the <strong>GPT-2 BPE</strong> (Byte Pair Encoding) tokenizer via
+	<a href="https://huggingface.co/docs/transformers.js" target="_blank" rel="noopener">Transformers.js</a>.
+	The tokenizer vocabulary (~800 KB) is downloaded from HuggingFace on first use and cached by the browser.
+</p>
+
+<form id="tokenize-form">
+	<textarea id="tokenize-input" placeholder="Enter text to tokenize…">The quick brown fox jumps over the lazy dog.</textarea>
+	<button type="submit" id="tokenize-btn" disabled>Tokenize</button>
+</form>
+<div id="tokenize-status">Loading tokenizer vocabulary…</div>
+
+<div id="tokenize-results" hidden>
+	<div id="token-summary"></div>
+	<div id="token-visual"></div>
+	<div id="token-ids"></div>
+</div>
+
+<script type="module">
+import { AutoTokenizer, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+
+env.allowLocalModels = false
+
+const form    = document.getElementById('tokenize-form')
+const input   = document.getElementById('tokenize-input')
+const btn     = document.getElementById('tokenize-btn')
+const status  = document.getElementById('tokenize-status')
+const results = document.getElementById('tokenize-results')
+const summary = document.getElementById('token-summary')
+const visual  = document.getElementById('token-visual')
+const idsEl   = document.getElementById('token-ids')
+
+let tokenizer = null
+
+AutoTokenizer.from_pretrained('Xenova/gpt2')
+	.then(tok => {
+		tokenizer = tok
+		status.textContent = ''
+		btn.disabled = false
+		input.focus()
+	})
+	.catch(err => {
+		status.textContent = 'Failed to load tokenizer: ' + err.message
+	})
+
+form.addEventListener('submit', e => {
+	e.preventDefault()
+	const text = input.value
+	if (!text || !tokenizer) return
+
+	const encoded = tokenizer(text, { add_special_tokens: false })
+	const ids = Array.from(encoded.input_ids.data)
+
+	// Decode each token individually to get its string representation
+	const pieces = ids.map(id => tokenizer.decode([id], { skip_special_tokens: false }))
+
+	summary.textContent = `${ids.length} token${ids.length !== 1 ? 's' : ''}`
+
+	visual.innerHTML = pieces
+		.map((piece, i) => {
+			const safe = piece
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+			return `<span class="tok" title="id\u00a0${ids[i]}">${safe}</span>`
+		})
+		.join('')
+
+	idsEl.textContent = 'IDs: ' + ids.join(', ')
+
+	results.hidden = false
+	status.textContent = ''
+})
+</script>
+
+</body>
+</html>

@@ -14,6 +14,16 @@ Proof-of-concept demo of AI core technologies (tokenization, LLM, RAG, vector se
 - **No install required**: users visit the site and everything works in-browser.
 - **Storage**: use IndexedDB for persistence (models, memories, embeddings, etc.).
 - **Deploy target**: GitHub Pages from the `docs/` folder.
+- **No UI framework**: vanilla JavaScript only. No React, Vue, Svelte, etc.
+
+## UI style
+
+This is a science/educational demo site. The aesthetic is plain and functional — think academic tool or terminal output, not a product landing page.
+
+- **No**: hover effects, drop shadows, border-radius, gradients, animations, fancy transitions
+- **Yes**: clean typography, good readability, sensible whitespace, functional form controls
+- Fix legitimately bad browser defaults (e.g. textarea styling) but do not over-style beyond what aids usability
+- Monospace font throughout is appropriate for this kind of demo
 
 ## Dev workflow
 
