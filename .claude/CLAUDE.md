@@ -4,8 +4,15 @@ Proof-of-concept demo of AI core technologies (tokenization, LLM, RAG, vector se
 
 ## Project structure
 
-- `docs/` — GitHub Pages site root; `docs/index.html` is the entry point
-- `package.json` — npm-managed dependencies and build scripts (ESM, `"type": "module"`)
+- `docs/` — GitHub Pages site root; `docs/index.html` is the entry point (never edit directly)
+- `src/` — all source files; see `src/CLAUDE.md` for detailed architecture
+- `src/shared.js` — shared state and helpers (REGISTRY, models, embedder, utilities)
+- `src/sections/NN-name/` — numbered content sections (HTML, CSS, JS)
+- `src/debug/NN-name/` — numbered debug panels shown in the debug overlay
+- `src/global.css` — base/reset styles only
+- `src/template.html` — page shell with `<!-- STYLES -->`, `<!-- DEBUG -->`, `<!-- SECTIONS -->`, `<!-- SCRIPT -->` placeholders
+- `build.mjs` — assembles everything into `docs/index.html`
+- `package.json` — npm-managed build scripts (ESM, `"type": "module"`)
 - `.claude/` — Claude Code configuration
 
 ## Key constraints
@@ -27,5 +34,5 @@ This is a science/educational demo site. The aesthetic is plain and functional �
 
 ## Dev workflow
 
-- `npm run build` — builds the site into `docs/`
-- Dependencies installed via npm in the repo root; bundled for the browser as needed.
+- `npm run build` — assembles `src/` into `docs/index.html`
+- See `src/CLAUDE.md` for how to add a new content section or debug panel
