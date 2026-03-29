@@ -114,7 +114,9 @@ button:disabled {
 	gap: 0.5rem;
 	margin-bottom: 2px;
 	font-size: 0.82rem;
+	cursor: pointer;
 }
+.pred-row:hover { background: #f0f0f0; }
 .pred-token {
 	white-space: pre;
 	overflow: hidden;
@@ -285,8 +287,7 @@ function softmaxWithTemp(logits, temp) {
 	return out
 }
 
-document.getElementById('predict-form').addEventListener('submit', async e => {
-	e.preventDefault()
+async function runPrediction() {
 	const text = predictInput.value
 	if (!text) return
 
@@ -307,9 +308,9 @@ document.getElementById('predict-form').addEventListener('submit', async e => {
 
 		// logits shape: [1, seq_len, vocab_size]
 		const { logits } = output
-		const seqLen   = logits.dims[1]
+		const seqLen    = logits.dims[1]
 		const vocabSize = logits.dims[2]
-		const offset   = (seqLen - 1) * vocabSize
+		const offset    = (seqLen - 1) * vocabSize
 		const lastLogits = logits.data.subarray(offset, offset + vocabSize)
 
 		const probs = softmaxWithTemp(lastLogits, temperature)
@@ -334,6 +335,19 @@ document.getElementById('predict-form').addEventListener('submit', async e => {
 	} finally {
 		predictBtn.disabled = false
 	}
+}
+
+document.getElementById('predict-form').addEventListener('submit', e => {
+	e.preventDefault()
+	runPrediction()
+})
+
+predChart.addEventListener('click', e => {
+	const row = e.target.closest('.pred-row')
+	if (!row || predictBtn.disabled) return
+	const id = parseInt(row.dataset.id)
+	predictInput.value += tokenizer.decode([id])
+	runPrediction()
 })
 
 function renderChart(topProbs, temperature, inputTokens) {
@@ -352,7 +366,7 @@ function renderChart(topProbs, temperature, inputTokens) {
 			.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
 			.replace(/>/g, '&gt;')
-		return `<div class="pred-row">` +
+		return `<div class="pred-row" data-id="${id}">` +
 			`<span class="pred-token" title="id\u00a0${id}">${safe}</span>` +
 			`<div class="pred-bar-wrap"><div class="pred-bar" style="width:${barWidth}%"></div></div>` +
 			`<span class="pred-pct">${pct}%</span>` +
