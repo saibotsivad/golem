@@ -20,8 +20,36 @@ strategyEl.addEventListener('change', () => {
 	document.getElementById('param-p-label').hidden    = s !== 'topp'
 })
 
+// ── Web Worker for background inference ───────────────────────────────────
+// The worker runs the full generation loop off the main thread so the UI
+// stays responsive during (WASM-backed) model inference.
+const SAMPLING_WORKER_CODE = `
+import { AutoTokenizer, GPT2LMHeadModel, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+
+env.allowLocalModels = false
+
+let tokenizer = null
+let lmModel   = null
 let stopRequested = false
-sampleStopBtn.addEventListener('click', () => { stopRequested = true })
+
+function softmaxWithTemp(logits, temp) {
+	const n = logits.length
+	let max = -Infinity
+	for (let i = 0; i < n; i++) if (logits[i] > max) max = logits[i]
+	const out = new Float64Array(n)
+	let sum = 0
+	for (let i = 0; i < n; i++) { out[i] = Math.exp((logits[i] - max) / temp); sum += out[i] }
+	for (let i = 0; i < n; i++) out[i] /= sum
+	return out
+}
+
+function getLogits(output) {
+	const { logits } = output
+	const seqLen    = logits.dims[1]
+	const vocabSize = logits.dims[2]
+	const offset    = (seqLen - 1) * vocabSize
+	return { lastLogits: logits.data.subarray(offset, offset + vocabSize) }
+}
 
 function sampleToken(probs, strategy, temp, k, p) {
 	const n = probs.length
@@ -33,9 +61,7 @@ function sampleToken(probs, strategy, temp, k, p) {
 	}
 
 	if (strategy === 'temperature') {
-		// Sample directly from the distribution (temperature already baked in via softmax)
-		let r = Math.random()
-		let cum = 0
+		let r = Math.random(), cum = 0
 		for (let i = 0; i < n; i++) {
 			cum += probs[i]
 			if (r <= cum) return { id: i, prob: probs[i] }
@@ -43,14 +69,11 @@ function sampleToken(probs, strategy, temp, k, p) {
 		return { id: n - 1, prob: probs[n - 1] }
 	}
 
-	// top-k or top-p: sort by probability descending, then take candidates
-	const sorted = Array.from({ length: n }, (_, i) => i)
-	sorted.sort((a, b) => probs[b] - probs[a])
-
+	const sorted = Array.from({ length: n }, (_, i) => i).sort((a, b) => probs[b] - probs[a])
 	let candidates
 	if (strategy === 'topk') {
 		candidates = sorted.slice(0, k)
-	} else { // topp
+	} else {
 		candidates = []
 		let cumSum = 0
 		for (const i of sorted) {
@@ -71,52 +94,43 @@ function sampleToken(probs, strategy, temp, k, p) {
 	return { id: last, prob: probs[last] }
 }
 
-document.getElementById('sample-form').addEventListener('submit', async e => {
-	e.preventDefault()
-	const prompt   = sampleInput.value
-	if (!prompt) return
+self.onmessage = async ({ data }) => {
+	if (data.type === 'stop') { stopRequested = true; return }
+	if (data.type !== 'generate') return
 
-	const strategy = strategyEl.value
-	const temp     = Math.max(0.01, parseFloat(sampleTempEl.value) || 1.0)
-	const k        = Math.max(1, parseInt(sampleKEl.value) || 40)
-	const p        = Math.max(0.01, Math.min(1, parseFloat(samplePEl.value) || 0.9))
-	const maxTok   = Math.max(1, Math.min(200, parseInt(sampleMaxEl.value) || 40))
-
-	sampleBtn.disabled    = true
-	sampleStopBtn.disabled = false
-	stopRequested          = false
-	sampleStatus.textContent = 'Initializing…'
-
-	// Prepare output area
-	sampleOutput.hidden = false
-	sampleText.innerHTML = ''
-	const promptSpan = document.createElement('span')
-	promptSpan.className = 'gen-prompt'
-	promptSpan.textContent = prompt
-	sampleText.appendChild(promptSpan)
-	sampleMeta.textContent = ''
+	stopRequested = false
+	const { prompt, strategy, temp, k, p, maxTok } = data
 
 	try {
-		const model = await ensureModel(info => {
-			if (info.status === 'progress')
-				sampleStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
-			else if (info.status === 'done')
-				sampleStatus.textContent = 'Loading model into memory…'
-		})
+		if (!tokenizer) {
+			self.postMessage({ type: 'status', text: 'Loading tokenizer\u2026' })
+			tokenizer = await AutoTokenizer.from_pretrained('Xenova/gpt2')
+		}
 
-		const GPT2_EOS = 50256
+		if (!lmModel) {
+			lmModel = await GPT2LMHeadModel.from_pretrained('Xenova/gpt2', {
+				quantized: true,
+				progress_callback: info => {
+					if (info.status === 'progress')
+						self.postMessage({ type: 'status', text: 'Downloading model: ' + info.progress.toFixed(0) + '%' })
+					else if (info.status === 'done')
+						self.postMessage({ type: 'status', text: 'Loading model into memory\u2026' })
+				},
+			})
+		}
+
+		const GPT2_EOS  = 50256
 		let generatedIds = []
 		let stepCount    = 0
 		let stopReason   = 'limit reached'
 
 		while (stepCount < maxTok) {
 			if (stopRequested) { stopReason = 'stopped'; break }
-
-			sampleStatus.textContent = `Generating token ${stepCount + 1} / ${maxTok}…`
+			self.postMessage({ type: 'status', text: 'Generating token ' + (stepCount + 1) + ' / ' + maxTok + '\u2026' })
 
 			const currentText = prompt + (generatedIds.length ? tokenizer.decode(generatedIds) : '')
 			const inputs = tokenizer(currentText, { truncation: true, max_length: 1024 })
-			const output = await model(inputs)
+			const output = await lmModel(inputs)
 			const { lastLogits } = getLogits(output)
 
 			const effectiveTemp = strategy === 'greedy' ? 1.0 : temp
@@ -126,26 +140,79 @@ document.getElementById('sample-form').addEventListener('submit', async e => {
 			if (id === GPT2_EOS) { stopReason = 'end-of-sequence token'; break }
 
 			generatedIds.push(id)
-			const tokenText = tokenizer.decode([id])
-			const span = document.createElement('span')
-			span.className = `gen-tok gen-tok-${stepCount % 2 === 0 ? 'a' : 'b'}`
-			span.title = `${(prob * 100).toFixed(1)}%`
-			span.textContent = tokenText
-			sampleText.appendChild(span)
-
+			self.postMessage({ type: 'token', text: tokenizer.decode([id]), prob, step: stepCount })
 			stepCount++
 		}
 
-		const strategyLabel = strategy === 'topk' ? `top-k (k=${k})` :
-		                      strategy === 'topp' ? `top-p (p=${p})` :
-		                      strategy === 'temperature' ? `temperature (${temp})` : 'greedy'
-		sampleMeta.textContent = `${stepCount} token${stepCount !== 1 ? 's' : ''} generated  ·  strategy: ${strategyLabel}  ·  ${stopReason}`
-		sampleStatus.textContent = ''
+		const strategyLabel = strategy === 'topk' ? 'top-k (k=' + k + ')' :
+		                      strategy === 'topp' ? 'top-p (p=' + p + ')' :
+		                      strategy === 'temperature' ? 'temperature (' + temp + ')' : 'greedy'
+		self.postMessage({ type: 'done', stepCount, strategyLabel, stopReason })
 	} catch (err) {
-		sampleStatus.textContent = 'Error: ' + err.message
-		console.error(err)
-	} finally {
-		sampleBtn.disabled     = false
-		sampleStopBtn.disabled = true
+		self.postMessage({ type: 'error', message: err.message })
 	}
+}
+`
+
+// Lazy-create a persistent worker so the loaded model survives across generates.
+let samplingWorker = null
+function getSamplingWorker() {
+	if (!samplingWorker) {
+		const blob = new Blob([SAMPLING_WORKER_CODE], { type: 'text/javascript' })
+		samplingWorker = new Worker(URL.createObjectURL(blob), { type: 'module' })
+	}
+	return samplingWorker
+}
+
+sampleStopBtn.addEventListener('click', () => {
+	if (samplingWorker) samplingWorker.postMessage({ type: 'stop' })
+})
+
+document.getElementById('sample-form').addEventListener('submit', e => {
+	e.preventDefault()
+	const prompt = sampleInput.value
+	if (!prompt) return
+
+	const strategy = strategyEl.value
+	const temp     = Math.max(0.01, parseFloat(sampleTempEl.value) || 1.0)
+	const k        = Math.max(1, parseInt(sampleKEl.value) || 40)
+	const p        = Math.max(0.01, Math.min(1, parseFloat(samplePEl.value) || 0.9))
+	const maxTok   = Math.max(1, Math.min(200, parseInt(sampleMaxEl.value) || 40))
+
+	sampleBtn.disabled     = true
+	sampleStopBtn.disabled = false
+	sampleStatus.textContent = 'Initializing\u2026'
+
+	sampleOutput.hidden = false
+	sampleText.innerHTML = ''
+	const promptSpan = document.createElement('span')
+	promptSpan.className = 'gen-prompt'
+	promptSpan.textContent = prompt
+	sampleText.appendChild(promptSpan)
+	sampleMeta.textContent = ''
+
+	const worker = getSamplingWorker()
+	worker.onmessage = ({ data }) => {
+		if (data.type === 'status') {
+			sampleStatus.textContent = data.text
+		} else if (data.type === 'token') {
+			const span = document.createElement('span')
+			span.className = 'gen-tok gen-tok-' + (data.step % 2 === 0 ? 'a' : 'b')
+			span.title = (data.prob * 100).toFixed(1) + '%'
+			span.textContent = data.text
+			sampleText.appendChild(span)
+		} else if (data.type === 'done') {
+			sampleMeta.textContent = data.stepCount + ' token' + (data.stepCount !== 1 ? 's' : '') + ' generated  \xb7  strategy: ' + data.strategyLabel + '  \xb7  ' + data.stopReason
+			sampleStatus.textContent = ''
+			sampleBtn.disabled     = false
+			sampleStopBtn.disabled = true
+		} else if (data.type === 'error') {
+			sampleStatus.textContent = 'Error: ' + data.message
+			console.error(data.message)
+			sampleBtn.disabled     = false
+			sampleStopBtn.disabled = true
+		}
+	}
+
+	worker.postMessage({ type: 'generate', prompt, strategy, temp, k, p, maxTok })
 })

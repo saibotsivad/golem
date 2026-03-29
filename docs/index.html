@@ -22,21 +22,7 @@ body {
 	color: #000;
 }
 
-h1 { font-size: 1.4rem; margin: 0; }
-.site-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.2rem; }
-.debug-toggle { font-size: 0.75rem; color: #aaa; text-decoration: none; }
-.debug-toggle:hover { color: #555; }
-#debug-panel { padding: 1rem 0; }
-.debug-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.8rem; }
-.debug-table th { text-align: left; border-bottom: 1px solid #000; padding: 0.2rem 0.8rem 0.2rem 0; font-weight: normal; color: #555; }
-.debug-table td { padding: 0.25rem 0.8rem 0.25rem 0; }
-.status-ready       { color: #060; }
-.status-cached      { color: #555; }
-.status-absent      { color: #bbb; }
-.status-downloading { color: #660; }
-.status-loading     { color: #660; }
-.status-error       { color: #c00; }
-.status-unknown     { color: #ccc; }
+h1 { font-size: 1.4rem; margin: 0 0 0.2rem; }
 h2 { font-size: 1.1rem; margin: 2.5rem 0 0.5rem; border-bottom: 1px solid #000; padding-bottom: 0.2rem; }
 p { margin: 0.4rem 0 0.8rem; font-size: 0.9rem; }
 a { color: #000; }
@@ -203,16 +189,10 @@ button:disabled {
 </head>
 <body>
 
-<div class="site-header">
-	<h1>golem</h1>
-	<a href="#" class="debug-toggle" id="debug-toggle-btn">debug</a>
-</div>
+<h1>golem</h1>
 <p>Proof-of-concept demos of AI core technologies, running entirely in the browser.<br>
-<small>Updated <span id="updated">2026-03-29T18:23:08.798Z</span></small></p>
+<small>Updated <span id="updated">2026-03-29T18:43:18.094Z</span></small></p>
 
-<div id="debug-panel" hidden></div>
-
-<div id="sections">
 
 <!-- ════════════════════════════════════════════
      §1 — Tokenization
@@ -395,48 +375,11 @@ button:disabled {
 	<div id="search-list"></div>
 </div>
 
-</div><!-- #sections -->
 
 <script type="module">
 import { AutoTokenizer, GPT2LMHeadModel, pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
 
 env.allowLocalModels = false
-
-// ── model registry ─────────────────────────────────────────────────────────
-// status values: 'unknown' | 'absent' | 'cached' | 'loading' | 'downloading' | 'ready' | 'error'
-// 'cached'  = file is in browser storage but not instantiated this session
-// 'loading' = file is in storage, being read/initialized into memory
-// 'downloading' = actively fetching from network (progress 0–100)
-// 'ready'   = fully loaded and available in memory
-const REGISTRY = {
-	'gpt2-tokenizer': { label: 'GPT-2 tokenizer',      size: '~800 KB', status: 'unknown', progress: null },
-	'gpt2-lm':        { label: 'GPT-2 LM',             size: '~81 MB',  status: 'unknown', progress: null },
-	'minilm':         { label: 'all-MiniLM-L6-v2',     size: '~23 MB',  status: 'unknown', progress: null },
-	'search-index':   { label: 'Semantic search index', size: null,      status: 'unknown', progress: null },
-}
-const _registryListeners = []
-function registrySubscribe(fn) { _registryListeners.push(fn) }
-function registrySet(key, update) {
-	Object.assign(REGISTRY[key], update)
-	for (const fn of _registryListeners) fn()
-}
-
-// Probe browser Cache API (used by Transformers.js) to detect pre-cached files.
-// Guard: only update if status is still 'unknown' so we never overwrite a live
-// 'loading'/'ready' state that the tokenizer auto-start may have already set.
-async function probeTransformersCache() {
-	try {
-		const cache = await caches.open('transformers-cache')
-		const urls  = (await cache.keys()).map(r => r.url)
-		if (REGISTRY['gpt2-tokenizer'].status === 'unknown')
-			registrySet('gpt2-tokenizer', { status: urls.some(u => u.includes('Xenova/gpt2') && /tokenizer|vocab|merges/.test(u)) ? 'cached' : 'absent' })
-		if (REGISTRY['gpt2-lm'].status === 'unknown')
-			registrySet('gpt2-lm',        { status: urls.some(u => u.includes('Xenova/gpt2') && u.includes('onnx')) ? 'cached' : 'absent' })
-		if (REGISTRY['minilm'].status === 'unknown')
-			registrySet('minilm',         { status: urls.some(u => u.includes('Xenova/all-MiniLM-L6-v2')) ? 'cached' : 'absent' })
-	} catch { /* Cache API unavailable — statuses stay 'unknown' */ }
-}
-probeTransformersCache()
 
 // ── shared tokenizer ───────────────────────────────────────────────────────
 let tokenizer = null
@@ -447,16 +390,10 @@ let lmModel = null
 
 async function ensureModel(onProgress) {
 	if (lmModel) return lmModel
-	registrySet('gpt2-lm', { status: 'loading', progress: null })
 	lmModel = await GPT2LMHeadModel.from_pretrained('Xenova/gpt2', {
 		quantized: true,
-		progress_callback: info => {
-			if (info.status === 'progress') registrySet('gpt2-lm', { status: 'downloading', progress: info.progress })
-			else if (info.status === 'done') registrySet('gpt2-lm', { status: 'loading',     progress: null })
-			if (onProgress) onProgress(info)
-		},
+		progress_callback: info => { if (onProgress) onProgress(info) },
 	})
-	registrySet('gpt2-lm', { status: 'ready', progress: null })
 	return lmModel
 }
 
@@ -490,16 +427,10 @@ let embedder = null
 
 async function ensureEmbedder(onProgress) {
 	if (embedder) return embedder
-	registrySet('minilm', { status: 'loading', progress: null })
 	embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
 		quantized: true,
-		progress_callback: info => {
-			if (info.status === 'progress') registrySet('minilm', { status: 'downloading', progress: info.progress })
-			else if (info.status === 'done') registrySet('minilm', { status: 'loading',     progress: null })
-			if (onProgress) onProgress(info)
-		},
+		progress_callback: info => { if (onProgress) onProgress(info) },
 	})
-	registrySet('minilm', { status: 'ready', progress: null })
 	return embedder
 }
 
@@ -546,19 +477,14 @@ const tokStatus = document.getElementById('tokenize-status')
 const tokBtn    = document.getElementById('tokenize-btn')
 const tokInput  = document.getElementById('tokenize-input')
 
-registrySet('gpt2-tokenizer', { status: 'loading' })
 AutoTokenizer.from_pretrained('Xenova/gpt2')
 	.then(tok => {
 		tokenizer = tok
-		registrySet('gpt2-tokenizer', { status: 'ready' })
 		tokStatus.textContent = ''
 		tokBtn.disabled = false
 		tokInput.focus()
 	})
-	.catch(err => {
-		registrySet('gpt2-tokenizer', { status: 'error' })
-		tokStatus.textContent = 'Failed to load tokenizer: ' + err.message
-	})
+	.catch(err => { tokStatus.textContent = 'Failed to load tokenizer: ' + err.message })
 
 const tokResults = document.getElementById('tokenize-results')
 const tokSummary = document.getElementById('token-summary')
@@ -679,8 +605,36 @@ strategyEl.addEventListener('change', () => {
 	document.getElementById('param-p-label').hidden    = s !== 'topp'
 })
 
+// ── Web Worker for background inference ───────────────────────────────────
+// The worker runs the full generation loop off the main thread so the UI
+// stays responsive during (WASM-backed) model inference.
+const SAMPLING_WORKER_CODE = `
+import { AutoTokenizer, GPT2LMHeadModel, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+
+env.allowLocalModels = false
+
+let tokenizer = null
+let lmModel   = null
 let stopRequested = false
-sampleStopBtn.addEventListener('click', () => { stopRequested = true })
+
+function softmaxWithTemp(logits, temp) {
+	const n = logits.length
+	let max = -Infinity
+	for (let i = 0; i < n; i++) if (logits[i] > max) max = logits[i]
+	const out = new Float64Array(n)
+	let sum = 0
+	for (let i = 0; i < n; i++) { out[i] = Math.exp((logits[i] - max) / temp); sum += out[i] }
+	for (let i = 0; i < n; i++) out[i] /= sum
+	return out
+}
+
+function getLogits(output) {
+	const { logits } = output
+	const seqLen    = logits.dims[1]
+	const vocabSize = logits.dims[2]
+	const offset    = (seqLen - 1) * vocabSize
+	return { lastLogits: logits.data.subarray(offset, offset + vocabSize) }
+}
 
 function sampleToken(probs, strategy, temp, k, p) {
 	const n = probs.length
@@ -692,9 +646,7 @@ function sampleToken(probs, strategy, temp, k, p) {
 	}
 
 	if (strategy === 'temperature') {
-		// Sample directly from the distribution (temperature already baked in via softmax)
-		let r = Math.random()
-		let cum = 0
+		let r = Math.random(), cum = 0
 		for (let i = 0; i < n; i++) {
 			cum += probs[i]
 			if (r <= cum) return { id: i, prob: probs[i] }
@@ -702,14 +654,11 @@ function sampleToken(probs, strategy, temp, k, p) {
 		return { id: n - 1, prob: probs[n - 1] }
 	}
 
-	// top-k or top-p: sort by probability descending, then take candidates
-	const sorted = Array.from({ length: n }, (_, i) => i)
-	sorted.sort((a, b) => probs[b] - probs[a])
-
+	const sorted = Array.from({ length: n }, (_, i) => i).sort((a, b) => probs[b] - probs[a])
 	let candidates
 	if (strategy === 'topk') {
 		candidates = sorted.slice(0, k)
-	} else { // topp
+	} else {
 		candidates = []
 		let cumSum = 0
 		for (const i of sorted) {
@@ -730,52 +679,43 @@ function sampleToken(probs, strategy, temp, k, p) {
 	return { id: last, prob: probs[last] }
 }
 
-document.getElementById('sample-form').addEventListener('submit', async e => {
-	e.preventDefault()
-	const prompt   = sampleInput.value
-	if (!prompt) return
+self.onmessage = async ({ data }) => {
+	if (data.type === 'stop') { stopRequested = true; return }
+	if (data.type !== 'generate') return
 
-	const strategy = strategyEl.value
-	const temp     = Math.max(0.01, parseFloat(sampleTempEl.value) || 1.0)
-	const k        = Math.max(1, parseInt(sampleKEl.value) || 40)
-	const p        = Math.max(0.01, Math.min(1, parseFloat(samplePEl.value) || 0.9))
-	const maxTok   = Math.max(1, Math.min(200, parseInt(sampleMaxEl.value) || 40))
-
-	sampleBtn.disabled    = true
-	sampleStopBtn.disabled = false
-	stopRequested          = false
-	sampleStatus.textContent = 'Initializing…'
-
-	// Prepare output area
-	sampleOutput.hidden = false
-	sampleText.innerHTML = ''
-	const promptSpan = document.createElement('span')
-	promptSpan.className = 'gen-prompt'
-	promptSpan.textContent = prompt
-	sampleText.appendChild(promptSpan)
-	sampleMeta.textContent = ''
+	stopRequested = false
+	const { prompt, strategy, temp, k, p, maxTok } = data
 
 	try {
-		const model = await ensureModel(info => {
-			if (info.status === 'progress')
-				sampleStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
-			else if (info.status === 'done')
-				sampleStatus.textContent = 'Loading model into memory…'
-		})
+		if (!tokenizer) {
+			self.postMessage({ type: 'status', text: 'Loading tokenizer\u2026' })
+			tokenizer = await AutoTokenizer.from_pretrained('Xenova/gpt2')
+		}
 
-		const GPT2_EOS = 50256
+		if (!lmModel) {
+			lmModel = await GPT2LMHeadModel.from_pretrained('Xenova/gpt2', {
+				quantized: true,
+				progress_callback: info => {
+					if (info.status === 'progress')
+						self.postMessage({ type: 'status', text: 'Downloading model: ' + info.progress.toFixed(0) + '%' })
+					else if (info.status === 'done')
+						self.postMessage({ type: 'status', text: 'Loading model into memory\u2026' })
+				},
+			})
+		}
+
+		const GPT2_EOS  = 50256
 		let generatedIds = []
 		let stepCount    = 0
 		let stopReason   = 'limit reached'
 
 		while (stepCount < maxTok) {
 			if (stopRequested) { stopReason = 'stopped'; break }
-
-			sampleStatus.textContent = `Generating token ${stepCount + 1} / ${maxTok}…`
+			self.postMessage({ type: 'status', text: 'Generating token ' + (stepCount + 1) + ' / ' + maxTok + '\u2026' })
 
 			const currentText = prompt + (generatedIds.length ? tokenizer.decode(generatedIds) : '')
 			const inputs = tokenizer(currentText, { truncation: true, max_length: 1024 })
-			const output = await model(inputs)
+			const output = await lmModel(inputs)
 			const { lastLogits } = getLogits(output)
 
 			const effectiveTemp = strategy === 'greedy' ? 1.0 : temp
@@ -785,28 +725,81 @@ document.getElementById('sample-form').addEventListener('submit', async e => {
 			if (id === GPT2_EOS) { stopReason = 'end-of-sequence token'; break }
 
 			generatedIds.push(id)
-			const tokenText = tokenizer.decode([id])
-			const span = document.createElement('span')
-			span.className = `gen-tok gen-tok-${stepCount % 2 === 0 ? 'a' : 'b'}`
-			span.title = `${(prob * 100).toFixed(1)}%`
-			span.textContent = tokenText
-			sampleText.appendChild(span)
-
+			self.postMessage({ type: 'token', text: tokenizer.decode([id]), prob, step: stepCount })
 			stepCount++
 		}
 
-		const strategyLabel = strategy === 'topk' ? `top-k (k=${k})` :
-		                      strategy === 'topp' ? `top-p (p=${p})` :
-		                      strategy === 'temperature' ? `temperature (${temp})` : 'greedy'
-		sampleMeta.textContent = `${stepCount} token${stepCount !== 1 ? 's' : ''} generated  ·  strategy: ${strategyLabel}  ·  ${stopReason}`
-		sampleStatus.textContent = ''
+		const strategyLabel = strategy === 'topk' ? 'top-k (k=' + k + ')' :
+		                      strategy === 'topp' ? 'top-p (p=' + p + ')' :
+		                      strategy === 'temperature' ? 'temperature (' + temp + ')' : 'greedy'
+		self.postMessage({ type: 'done', stepCount, strategyLabel, stopReason })
 	} catch (err) {
-		sampleStatus.textContent = 'Error: ' + err.message
-		console.error(err)
-	} finally {
-		sampleBtn.disabled     = false
-		sampleStopBtn.disabled = true
+		self.postMessage({ type: 'error', message: err.message })
 	}
+}
+`
+
+// Lazy-create a persistent worker so the loaded model survives across generates.
+let samplingWorker = null
+function getSamplingWorker() {
+	if (!samplingWorker) {
+		const blob = new Blob([SAMPLING_WORKER_CODE], { type: 'text/javascript' })
+		samplingWorker = new Worker(URL.createObjectURL(blob), { type: 'module' })
+	}
+	return samplingWorker
+}
+
+sampleStopBtn.addEventListener('click', () => {
+	if (samplingWorker) samplingWorker.postMessage({ type: 'stop' })
+})
+
+document.getElementById('sample-form').addEventListener('submit', e => {
+	e.preventDefault()
+	const prompt = sampleInput.value
+	if (!prompt) return
+
+	const strategy = strategyEl.value
+	const temp     = Math.max(0.01, parseFloat(sampleTempEl.value) || 1.0)
+	const k        = Math.max(1, parseInt(sampleKEl.value) || 40)
+	const p        = Math.max(0.01, Math.min(1, parseFloat(samplePEl.value) || 0.9))
+	const maxTok   = Math.max(1, Math.min(200, parseInt(sampleMaxEl.value) || 40))
+
+	sampleBtn.disabled     = true
+	sampleStopBtn.disabled = false
+	sampleStatus.textContent = 'Initializing\u2026'
+
+	sampleOutput.hidden = false
+	sampleText.innerHTML = ''
+	const promptSpan = document.createElement('span')
+	promptSpan.className = 'gen-prompt'
+	promptSpan.textContent = prompt
+	sampleText.appendChild(promptSpan)
+	sampleMeta.textContent = ''
+
+	const worker = getSamplingWorker()
+	worker.onmessage = ({ data }) => {
+		if (data.type === 'status') {
+			sampleStatus.textContent = data.text
+		} else if (data.type === 'token') {
+			const span = document.createElement('span')
+			span.className = 'gen-tok gen-tok-' + (data.step % 2 === 0 ? 'a' : 'b')
+			span.title = (data.prob * 100).toFixed(1) + '%'
+			span.textContent = data.text
+			sampleText.appendChild(span)
+		} else if (data.type === 'done') {
+			sampleMeta.textContent = data.stepCount + ' token' + (data.stepCount !== 1 ? 's' : '') + ' generated  \xb7  strategy: ' + data.strategyLabel + '  \xb7  ' + data.stopReason
+			sampleStatus.textContent = ''
+			sampleBtn.disabled     = false
+			sampleStopBtn.disabled = true
+		} else if (data.type === 'error') {
+			sampleStatus.textContent = 'Error: ' + data.message
+			console.error(data.message)
+			sampleBtn.disabled     = false
+			sampleStopBtn.disabled = true
+		}
+	}
+
+	worker.postMessage({ type: 'generate', prompt, strategy, temp, k, p, maxTok })
 })
 
 
@@ -968,18 +961,16 @@ async function idbPut(key, value) {
 
 // Eagerly load from cache on page load
 idbGet(CORPUS_VERSION).then(cached => {
-	if (!cached) { registrySet('search-index', { status: 'absent' }); return }
+	if (!cached) return
 	corpusVecs = cached
-	registrySet('search-index', { status: 'ready' })
 	indexStatusEl.textContent = `${CORPUS.length} passages (cached)`
 	searchQueryEl.disabled = false
 	searchBtn.disabled     = false
-}).catch(() => { registrySet('search-index', { status: 'absent' }) })
+}).catch(() => {})
 
 buildIndexBtn.addEventListener('click', async () => {
 	buildIndexBtn.disabled   = true
 	indexStatusEl.textContent = 'Initializing…'
-	registrySet('search-index', { status: 'loading' })
 	try {
 		const ext = await ensureEmbedder(info => {
 			if (info.status === 'progress')
@@ -995,13 +986,11 @@ buildIndexBtn.addEventListener('click', async () => {
 		}
 		corpusVecs = allVecs
 		await idbPut(CORPUS_VERSION, corpusVecs)
-		registrySet('search-index', { status: 'ready' })
 		indexStatusEl.textContent = `${CORPUS.length} passages indexed and cached`
 		searchQueryEl.disabled = false
 		searchBtn.disabled     = false
 		buildIndexBtn.disabled = false
 	} catch (err) {
-		registrySet('search-index', { status: 'absent' })
 		indexStatusEl.textContent = 'Error: ' + err.message
 		buildIndexBtn.disabled = false
 	}
@@ -1054,42 +1043,6 @@ document.getElementById('search-form').addEventListener('submit', async e => {
 	} finally {
 		searchBtn.disabled = false
 	}
-})
-
-// ── debug panel renderer ────────────────────────────────────────────────────
-const _debugStatusClass = {
-	ready: 'status-ready', cached: 'status-cached', absent: 'status-absent',
-	downloading: 'status-downloading', loading: 'status-loading',
-	error: 'status-error', unknown: 'status-unknown',
-}
-const _debugStatusLabel = {
-	ready: 'ready', cached: 'cached', absent: 'not cached',
-	loading: 'initializing…', error: 'error', unknown: '—',
-}
-function renderDebugPanel() {
-	const rows = Object.values(REGISTRY).map(({ label, size, status, progress }) => {
-		const cls  = _debugStatusClass[status] || ''
-		const text = status === 'downloading' && progress !== null
-			? `downloading ${progress.toFixed(0)}%`
-			: (_debugStatusLabel[status] || status)
-		return `<tr><td>${label}</td><td style="color:#999">${size ?? ''}</td><td class="${cls}">${text}</td></tr>`
-	})
-	document.getElementById('debug-panel').innerHTML =
-		`<p style="margin:0 0 0.5rem;font-size:0.85rem;color:#555"><em>cached</em> = in browser storage &nbsp;·&nbsp; <em>ready</em> = instantiated this session</p>` +
-		`<table class="debug-table"><thead><tr><th>Asset</th><th>Size</th><th>Status</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
-}
-registrySubscribe(renderDebugPanel)
-renderDebugPanel()
-
-document.getElementById('debug-toggle-btn').addEventListener('click', e => {
-	e.preventDefault()
-	const panel = document.getElementById('debug-panel')
-	const sections = document.getElementById('sections')
-	const btn = e.currentTarget
-	const showing = !panel.hidden
-	panel.hidden = showing
-	sections.hidden = !showing
-	btn.textContent = showing ? 'debug' : 'back'
 })
 
 </script>
