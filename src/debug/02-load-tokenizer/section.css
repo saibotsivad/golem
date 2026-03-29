@@ -1,6 +1,7 @@
 .debug-load-tok { border-top: 1px solid #e0e0e0; margin-top: 1rem; padding-top: 1rem; }
 .debug-tok-heading { font-size: 0.85rem; font-weight: bold; color: #333; margin: 0 0 0.5rem; }
 .debug-tok-row { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; margin-bottom: 0.3rem; }
+.debug-tok-save-label { font-size: 0.9rem; color: #555; white-space: nowrap; }
 #debug-tok-input {
 	font-family: inherit;
 	font-size: 0.9rem;

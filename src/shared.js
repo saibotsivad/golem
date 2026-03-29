@@ -21,6 +21,10 @@ function registrySet(key, update) {
 	Object.assign(REGISTRY[key], update)
 	for (const fn of _registryListeners) fn()
 }
+function registryDelete(key) {
+	delete REGISTRY[key]
+	for (const fn of _registryListeners) fn()
+}
 
 // Probe browser Cache API (used by Transformers.js) to detect pre-cached files.
 // Guard: only update if status is still 'unknown' so we never overwrite a live

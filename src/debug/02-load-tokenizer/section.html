@@ -3,6 +3,7 @@
 	<form id="debug-tok-form">
 		<div class="debug-tok-row">
 			<input type="text" id="debug-tok-input" placeholder="e.g. Xenova/bert-base-uncased">
+			<label class="debug-tok-save-label"><input type="checkbox" id="debug-tok-save" checked> save locally</label>
 			<button type="submit" id="debug-tok-btn">Load</button>
 		</div>
 		<p class="param-note">HuggingFace model name for <code>AutoTokenizer.from_pretrained</code>. Try <code>Xenova/bert-base-uncased</code> — BERT&rsquo;s WordPiece tokenizer (~570&nbsp;KB), a useful contrast to GPT-2&rsquo;s BPE: subword units use <code>##</code> continuation markers and a 30k vocabulary instead of 50k. For something that will really push the browser: <code>Xenova/bloom-560m</code> — byte-level BPE with a 250,880-token vocabulary (~17&nbsp;MB <code>tokenizer.json</code>), 5&times; larger than GPT-2.</p>

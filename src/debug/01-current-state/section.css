@@ -8,3 +8,4 @@
 .status-loading     { color: #660; }
 .status-error       { color: #c00; }
 .status-unknown     { color: #ccc; }
+.debug-clear-btn { background: none; border: none; color: #aaa; cursor: pointer; font-family: inherit; font-size: 0.85rem; padding: 0; margin: 0; }
