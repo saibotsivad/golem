@@ -8,6 +8,7 @@
 .rag-label-row { display: flex; align-items: baseline; gap: 0.8rem; margin: 1.2rem 0 0.5rem; border-bottom: 1px solid #ddd; padding-bottom: 0.2rem; }
 .rag-label-row .rag-label { margin: 0; border: none; padding: 0; flex: 1; }
 .rag-label-row button { margin-top: 0; padding: 0.1rem 0.6rem; font-size: 0.75rem; }
+#rag-tps { font-size: 0.75rem; color: #888; min-width: 7ch; }
 .rag-label {
 	font-size: 0.75rem;
 	color: #666;

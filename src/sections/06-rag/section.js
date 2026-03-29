@@ -46,6 +46,7 @@ const ragResults        = document.getElementById('rag-results')
 const ragRetrievedList  = document.getElementById('rag-retrieved-list')
 const ragContextBox     = document.getElementById('rag-context-box')
 const ragStopInline     = document.getElementById('rag-stop-inline')
+const ragTps            = document.getElementById('rag-tps')
 const ragOutputWith     = document.getElementById('rag-output-with')
 const ragMetaWith       = document.getElementById('rag-meta-with')
 const ragWithoutSection = document.getElementById('rag-without-section')
@@ -177,21 +178,32 @@ document.getElementById('rag-form').addEventListener('submit', async e => {
 	ragOutputWith.appendChild(promptSpan)
 
 	ragResults.hidden = false
+	ragTps.textContent = ''
 	ragStatus.textContent = 'Generating with context…'
 
+	let ragGenStart = null
 	const worker = getRagWorker()
 
 	worker.onmessage = ({ data }) => {
 		if (data.type === 'status') {
 			ragStatus.textContent = data.text
 		} else if (data.type === 'token') {
+			if (data.step === 0) ragGenStart = Date.now()
 			const span = document.createElement('span')
 			span.className = 'gen-tok gen-tok-' + (data.step % 2 === 0 ? 'a' : 'b')
 			span.title = (data.prob * 100).toFixed(1) + '%'
 			span.textContent = data.text
 			ragOutputWith.appendChild(span)
+			if (data.step > 0) {
+				const tps = (data.step + 1) / ((Date.now() - ragGenStart) / 1000)
+				ragTps.textContent = tps.toFixed(2) + ' tok/s'
+			}
 		} else if (data.type === 'done') {
-			ragMetaWith.textContent = `${data.stepCount} token${data.stepCount !== 1 ? 's' : ''}  \xb7  temperature ${temp}  \xb7  ${data.stopReason}`
+			const finalTps = ragGenStart && data.stepCount > 1
+				? (data.stepCount / ((Date.now() - ragGenStart) / 1000)).toFixed(2) + ' tok/s'
+				: ''
+			ragMetaWith.textContent = `${data.stepCount} token${data.stepCount !== 1 ? 's' : ''}  \xb7  temperature ${temp}  \xb7  ${data.stopReason}${finalTps ? '  \xb7  ' + finalTps : ''}`
+			ragTps.textContent = ''
 
 			if (compare && !ragStopped) {
 				// ── Phase 2: generate without context ──────────────────────
