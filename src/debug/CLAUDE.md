@@ -27,3 +27,4 @@ Debug panels must **not** call `registrySet` — they observe state only.
 ## Panels
 
 - `01-current-state/` — table showing every REGISTRY asset with its current status and download progress
+- `02-load-tokenizer/` — form to load any HuggingFace tokenizer by model name; registers it in REGISTRY so its status appears in the current-state table
