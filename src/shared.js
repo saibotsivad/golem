@@ -247,38 +247,3 @@ function drawEmbeddingGrid(canvas, vecs, count, dims, totalRows) {
 	}
 }
 
-// ── debug panel renderer ────────────────────────────────────────────────────
-const _debugStatusClass = {
-	ready: 'status-ready', cached: 'status-cached', absent: 'status-absent',
-	downloading: 'status-downloading', loading: 'status-loading',
-	error: 'status-error', unknown: 'status-unknown',
-}
-const _debugStatusLabel = {
-	ready: 'ready', cached: 'cached', absent: 'not cached',
-	loading: 'initializing\u2026', error: 'error', unknown: '\u2014',
-}
-function renderDebugPanel() {
-	const rows = Object.values(REGISTRY).map(({ label, size, status, progress }) => {
-		const cls  = _debugStatusClass[status] || ''
-		const text = status === 'downloading' && progress !== null
-			? `downloading ${progress.toFixed(0)}%`
-			: (_debugStatusLabel[status] || status)
-		return `<tr><td>${label}</td><td style="color:#999">${size ?? ''}</td><td class="${cls}">${text}</td></tr>`
-	})
-	document.getElementById('debug-panel').innerHTML =
-		`<p style="margin:0 0 0.5rem;font-size:0.85rem;color:#555"><em>cached</em> = in browser storage &nbsp;\xb7&nbsp; <em>ready</em> = instantiated this session</p>` +
-		`<table class="debug-table"><thead><tr><th>Asset</th><th>Size</th><th>Status</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
-}
-registrySubscribe(renderDebugPanel)
-renderDebugPanel()
-
-document.getElementById('debug-toggle-btn').addEventListener('click', e => {
-	e.preventDefault()
-	const panel    = document.getElementById('debug-panel')
-	const sections = document.getElementById('sections')
-	const btn      = e.currentTarget
-	const showing  = !panel.hidden
-	panel.hidden    = showing
-	sections.hidden = !showing
-	btn.textContent = showing ? 'debug' : 'back'
-})
