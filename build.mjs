@@ -41,8 +41,11 @@ for (const dir of sectionDirs) {
 }
 const sectionsBlock = htmlParts.join('\n\n')
 
-// Assemble JS: shared → debug → sections
-const jsParts = [readFileSync(join(src, 'shared.js'), 'utf8')]
+// Assemble JS: shared → golem → debug → sections
+const jsParts = [
+	readFileSync(join(src, 'shared.js'), 'utf8'),
+	readFileSync(join(src, 'golem.js'), 'utf8'),
+]
 for (const dir of debugDirs) {
 	jsParts.push(readFileSync(join(src, 'debug', dir, 'section.js'), 'utf8'))
 }

@@ -157,12 +157,11 @@ document.getElementById('search-form').addEventListener('submit', async e => {
 	searchStatus.textContent = 'Embedding query…'
 
 	try {
-		const ext  = await ensureEmbedder(info => {
+		await ensureEmbedder(info => {
 			if (info.status === 'progress')
 				searchStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
 		})
-		const qOut = await ext(query, { pooling: 'mean', normalize: true })
-		const qVec = qOut.data
+		const qVec = await embed(query)
 
 		// Dot product = cosine similarity (all vectors are unit-normalized)
 		const scores = []

@@ -11,9 +11,56 @@ Source files assembled by `build.mjs` into `docs/index.html`. Never edit `docs/i
 | `<style>` | `global.css`, then each `debug/NN-name/section.css`, then each `sections/NN-name/section.css` |
 | debug HTML | each `debug/NN-name/section.html` — injected into `<div id="debug-panel">` |
 | body HTML | each `sections/NN-name/section.html` — injected into `<div id="sections">` |
-| `<script type="module">` | `shared.js`, then each `debug/NN-name/section.js`, then each `sections/NN-name/section.js` |
+| `<script type="module">` | `shared.js`, then `golem.js`, then each `debug/NN-name/section.js`, then each `sections/NN-name/section.js` |
 
 Because all JS lands in a single `<script type="module">`, every variable and function declared in `shared.js` is in scope for all `section.js` and debug `section.js` files, and all earlier section files are in scope for later ones. No `import`/`export` is needed.
+
+---
+
+## golem.js — public developer API
+
+`golem.js` runs after `shared.js` and before all debug panels and section files.
+It exposes `window.golem`, accessible from the browser console and from any
+section or debug panel JS.
+
+### Tokenizer management
+
+```js
+golem.modelKey('Xenova/bert-base-uncased')   // → 'xenova-bert-base-uncased'
+await golem.loadTokenizer('Xenova/bert-base-uncased')   // load + save to IDB
+await golem.loadTokenizer('Xenova/bloom-560m', false)   // load without saving
+await golem.unloadTokenizer('xenova-bert-base-uncased') // remove from memory + IDB
+golem.tokenizers()    // → { 'gpt2-tokenizer': 'ready', 'xenova-bert-base-uncased': 'ready' }
+golem.tokenize('xenova-bert-base-uncased', 'hello world')          // → [{piece,id},…]
+golem.tokenize('gpt2-tokenizer', 'hello', (piece, id, i) => …)    // with callback
+golem.decode('gpt2-tokenizer', [15496, 11, 995])                   // → 'Hello, world'
+```
+
+### Model / embedder wrappers
+
+```js
+await golem.loadModel()    // wraps ensureModel(); updates REGISTRY 'gpt2-lm'
+await golem.loadEmbedder() // wraps ensureEmbedder(); updates REGISTRY 'minilm'
+```
+
+### IndexedDB persistence
+
+Tokenizer names are stored in the `'golem'` database, `'tokenizers'` store
+(`keyPath: 'key'`). On page load, `golem.js` auto-restores any saved tokenizers
+by calling `loadTokenizer(modelName, false)` for each entry — files are re-read
+from the browser cache, so no network request is needed if they were previously
+downloaded.
+
+`loadTokenizer` with `saveLocally = true` (the default) writes to IDB.
+`unloadTokenizer` deletes from IDB. The debug panel's "save locally" checkbox
+controls the `saveLocally` argument on form submit.
+
+### Rules for adding to golem.js
+
+- Only add things that are genuinely part of the public developer API.
+- New model loaders should update REGISTRY with proper status lifecycle.
+- Keep `_isLoaded` and other `_`-prefixed properties semi-private; they are for
+  debug panel infrastructure, not for use in content sections.
 
 ---
 

@@ -7,6 +7,7 @@ Proof-of-concept demo of AI core technologies (tokenization, LLM, RAG, vector se
 - `docs/` — GitHub Pages site root; `docs/index.html` is the entry point (never edit directly)
 - `src/` — all source files; see `src/CLAUDE.md` for detailed architecture
 - `src/shared.js` — shared state and helpers (REGISTRY, models, embedder, utilities)
+- `src/golem.js` — public developer API (`window.golem`): tokenizer loading/unloading, IDB persistence, `tokenize`/`decode`, model/embedder wrappers
 - `src/sections/NN-name/` — numbered content sections (HTML, CSS, JS)
 - `src/debug/NN-name/` — numbered debug panels shown in the debug overlay
 - `src/global.css` — base/reset styles only
