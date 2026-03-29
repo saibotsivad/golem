@@ -26,7 +26,7 @@ small { font-size: 0.8rem; color: #555; }
 
 textarea {
 	width: 100%;
-	min-height: 7rem;
+	min-height: 5rem;
 	font-family: inherit;
 	font-size: 0.95rem;
 	padding: 0.5rem;
@@ -52,19 +52,18 @@ button:disabled {
 	cursor: default;
 }
 
-#tokenize-status {
+/* ── shared status line ── */
+.section-status {
 	font-size: 0.85rem;
 	margin: 0.5rem 0 0;
 	min-height: 1.3em;
 	color: #555;
 }
 
+/* ── §1 tokenization ── */
 #tokenize-results { margin-top: 1.2rem; }
 
-#token-summary {
-	font-size: 0.85rem;
-	margin-bottom: 0.6rem;
-}
+#token-summary { font-size: 0.85rem; margin-bottom: 0.6rem; }
 
 #token-visual {
 	font-size: 0.95rem;
@@ -75,25 +74,71 @@ button:disabled {
 	margin-bottom: 0.8rem;
 }
 
-/* alternating token highlight — two very muted tints */
 .tok { display: inline; white-space: pre; }
 .tok:nth-child(odd)  { background: #ddeedd; }
 .tok:nth-child(even) { background: #dde2ee; }
 
-#token-ids {
-	font-size: 0.8rem;
-	color: #444;
-	word-break: break-all;
+#token-ids { font-size: 0.8rem; color: #444; word-break: break-all; }
+
+/* ── §2 next-token prediction ── */
+.param-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5rem;
+	margin-top: 0.6rem;
+	font-size: 0.9rem;
+	align-items: baseline;
 }
+.param-row label { display: flex; align-items: baseline; gap: 0.4rem; }
+.param-row input[type=number] {
+	font-family: inherit;
+	font-size: 0.9rem;
+	width: 5rem;
+	padding: 0.15rem 0.3rem;
+	border: 1px solid #000;
+}
+.param-row input[type=range] {
+	width: 8rem;
+	vertical-align: middle;
+}
+.param-note { font-size: 0.8rem; color: #555; margin-top: 0.3rem; }
+
+#predict-results { margin-top: 1.2rem; }
+
+#pred-header { font-size: 0.85rem; margin-bottom: 0.5rem; color: #444; }
+
+.pred-row {
+	display: grid;
+	grid-template-columns: 16ch 1fr 5.5ch;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 2px;
+	font-size: 0.82rem;
+}
+.pred-token {
+	white-space: pre;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-align: right;
+	padding-right: 0.4rem;
+	border-right: 1px solid #ccc;
+	color: #000;
+}
+.pred-bar-wrap { background: #e8e8e8; height: 1em; }
+.pred-bar      { background: #222; height: 100%; }
+.pred-pct      { text-align: right; color: #444; }
 </style>
 </head>
 <body>
 
 <h1>golem</h1>
 <p>Proof-of-concept demos of AI core technologies, running entirely in the browser.<br>
-<small>Updated <span id="updated">2026-03-29T05:46:24.745Z</span></small></p>
+<small>Updated <span id="updated">2026-03-29T06:03:09.490Z</span></small></p>
 
-<h2>Tokenization</h2>
+<!-- ════════════════════════════════════════════
+     §1 — Tokenization
+     ════════════════════════════════════════════ -->
+<h2>§1 — Tokenization</h2>
 <p>
 	Tokenization is how large language models break text into discrete units before processing.
 	This demo uses the <strong>GPT-2 BPE</strong> (Byte Pair Encoding) tokenizer via
@@ -105,7 +150,7 @@ button:disabled {
 	<textarea id="tokenize-input" placeholder="Enter text to tokenize…">The quick brown fox jumps over the lazy dog.</textarea>
 	<button type="submit" id="tokenize-btn" disabled>Tokenize</button>
 </form>
-<div id="tokenize-status">Loading tokenizer vocabulary…</div>
+<div id="tokenize-status" class="section-status">Loading tokenizer vocabulary…</div>
 
 <div id="tokenize-results" hidden>
 	<div id="token-summary"></div>
@@ -113,61 +158,207 @@ button:disabled {
 	<div id="token-ids"></div>
 </div>
 
+
+<!-- ════════════════════════════════════════════
+     §2 — Next-Token Prediction
+     ════════════════════════════════════════════ -->
+<h2>§2 — Next-Token Prediction</h2>
+<p>
+	At each step, a language model produces a <em>probability distribution</em> over every token in its
+	vocabulary — not a single answer. This demo runs <strong>GPT-2</strong> (quantized, ~81 MB, cached after
+	first download) fully in-browser and shows that raw distribution for the token that would follow your input.
+</p>
+
+<form id="predict-form">
+	<textarea id="predict-input" placeholder="Enter a prompt…">The quick brown fox</textarea>
+	<div class="param-row">
+		<label>Temperature
+			<input type="number" id="temperature" value="1.0" min="0.1" max="5.0" step="0.1">
+		</label>
+		<label>Show top
+			<input type="number" id="top-n" value="20" min="5" max="100" step="1"> tokens
+		</label>
+	</div>
+	<p class="param-note">Temperature &lt; 1 sharpens the distribution (fewer candidates dominate); &gt; 1 flattens it (probabilities become more uniform).</p>
+	<button type="submit" id="predict-btn">Predict next token  [downloads ~81 MB on first run]</button>
+</form>
+<div id="predict-status" class="section-status"></div>
+
+<div id="predict-results" hidden>
+	<div id="pred-header"></div>
+	<div id="pred-chart"></div>
+</div>
+
+
 <script type="module">
-import { AutoTokenizer, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+import { AutoTokenizer, GPT2LMHeadModel, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
 
 env.allowLocalModels = false
 
-const form    = document.getElementById('tokenize-form')
-const input   = document.getElementById('tokenize-input')
-const btn     = document.getElementById('tokenize-btn')
-const status  = document.getElementById('tokenize-status')
-const results = document.getElementById('tokenize-results')
-const summary = document.getElementById('token-summary')
-const visual  = document.getElementById('token-visual')
-const idsEl   = document.getElementById('token-ids')
-
+// ── shared tokenizer (used by both sections) ──────────────────────────────
 let tokenizer = null
+
+const tokStatus  = document.getElementById('tokenize-status')
+const tokBtn     = document.getElementById('tokenize-btn')
+const tokInput   = document.getElementById('tokenize-input')
 
 AutoTokenizer.from_pretrained('Xenova/gpt2')
 	.then(tok => {
 		tokenizer = tok
-		status.textContent = ''
-		btn.disabled = false
-		input.focus()
+		tokStatus.textContent = ''
+		tokBtn.disabled = false
+		tokInput.focus()
 	})
 	.catch(err => {
-		status.textContent = 'Failed to load tokenizer: ' + err.message
+		tokStatus.textContent = 'Failed to load tokenizer: ' + err.message
 	})
 
-form.addEventListener('submit', e => {
+
+// ── §1 tokenization ───────────────────────────────────────────────────────
+const tokResults = document.getElementById('tokenize-results')
+const tokSummary = document.getElementById('token-summary')
+const tokVisual  = document.getElementById('token-visual')
+const tokIds     = document.getElementById('token-ids')
+
+document.getElementById('tokenize-form').addEventListener('submit', e => {
 	e.preventDefault()
-	const text = input.value
+	const text = tokInput.value
 	if (!text || !tokenizer) return
 
 	const encoded = tokenizer(text, { add_special_tokens: false })
 	const ids = Array.from(encoded.input_ids.data)
-
-	// Decode each token individually to get its string representation
 	const pieces = ids.map(id => tokenizer.decode([id], { skip_special_tokens: false }))
 
-	summary.textContent = `${ids.length} token${ids.length !== 1 ? 's' : ''}`
+	tokSummary.textContent = `${ids.length} token${ids.length !== 1 ? 's' : ''}`
 
-	visual.innerHTML = pieces
+	tokVisual.innerHTML = pieces
 		.map((piece, i) => {
-			const safe = piece
-				.replace(/&/g, '&amp;')
-				.replace(/</g, '&lt;')
-				.replace(/>/g, '&gt;')
+			const safe = piece.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 			return `<span class="tok" title="id\u00a0${ids[i]}">${safe}</span>`
 		})
 		.join('')
 
-	idsEl.textContent = 'IDs: ' + ids.join(', ')
-
-	results.hidden = false
-	status.textContent = ''
+	tokIds.textContent = 'IDs: ' + ids.join(', ')
+	tokResults.hidden = false
+	tokStatus.textContent = ''
 })
+
+
+// ── §2 next-token prediction ──────────────────────────────────────────────
+const predictStatus  = document.getElementById('predict-status')
+const predictBtn     = document.getElementById('predict-btn')
+const predictInput   = document.getElementById('predict-input')
+const predictResults = document.getElementById('predict-results')
+const predHeader     = document.getElementById('pred-header')
+const predChart      = document.getElementById('pred-chart')
+const tempInput      = document.getElementById('temperature')
+const topNInput      = document.getElementById('top-n')
+
+let lmModel = null
+
+async function ensureModel() {
+	if (lmModel) return lmModel
+	lmModel = await GPT2LMHeadModel.from_pretrained('Xenova/gpt2', {
+		quantized: true,
+		progress_callback: info => {
+			if (info.status === 'progress') {
+				predictStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
+			} else if (info.status === 'done') {
+				predictStatus.textContent = 'Loading model into memory…'
+			}
+		},
+	})
+	return lmModel
+}
+
+function softmaxWithTemp(logits, temp) {
+	const n = logits.length
+	let max = -Infinity
+	for (let i = 0; i < n; i++) if (logits[i] > max) max = logits[i]
+	const out = new Float64Array(n)
+	let sum = 0
+	for (let i = 0; i < n; i++) {
+		out[i] = Math.exp((logits[i] - max) / temp)
+		sum += out[i]
+	}
+	for (let i = 0; i < n; i++) out[i] /= sum
+	return out
+}
+
+document.getElementById('predict-form').addEventListener('submit', async e => {
+	e.preventDefault()
+	const text = predictInput.value
+	if (!text) return
+
+	const temperature = Math.max(0.01, parseFloat(tempInput.value) || 1.0)
+	const topN = Math.max(1, Math.min(200, parseInt(topNInput.value) || 20))
+
+	predictBtn.disabled = true
+	predictStatus.textContent = 'Initializing…'
+
+	try {
+		const model = await ensureModel()
+
+		predictStatus.textContent = 'Running inference…'
+
+		// Tokenize; truncate to GPT-2's 1024-token context window
+		const inputs = tokenizer(text, { truncation: true, max_length: 1024 })
+		const output = await model(inputs)
+
+		// logits shape: [1, seq_len, vocab_size]
+		const { logits } = output
+		const seqLen   = logits.dims[1]
+		const vocabSize = logits.dims[2]
+		const offset   = (seqLen - 1) * vocabSize
+		const lastLogits = logits.data.subarray(offset, offset + vocabSize)
+
+		const probs = softmaxWithTemp(lastLogits, temperature)
+
+		// Sort all vocab indices by probability descending, take top N
+		const indices = Array.from({ length: vocabSize }, (_, i) => i)
+		indices.sort((a, b) => probs[b] - probs[a])
+		const top = indices.slice(0, topN)
+
+		const topProbs = top.map(id => ({
+			id,
+			token: tokenizer.decode([id]),
+			prob: probs[id],
+		}))
+
+		renderChart(topProbs, temperature, seqLen)
+		predictResults.hidden = false
+		predictStatus.textContent = ''
+	} catch (err) {
+		predictStatus.textContent = 'Error: ' + err.message
+		console.error(err)
+	} finally {
+		predictBtn.disabled = false
+	}
+})
+
+function renderChart(topProbs, temperature, inputTokens) {
+	const maxProb = topProbs[0].prob
+
+	// Compute cumulative probability covered by the shown tokens
+	const cumProb = (topProbs.reduce((s, t) => s + t.prob, 0) * 100).toFixed(1)
+
+	predHeader.textContent =
+		`top ${topProbs.length} of 50,257 tokens  ·  temperature: ${temperature}  ·  input: ${inputTokens} token${inputTokens !== 1 ? 's' : ''}  ·  cumulative probability shown: ${cumProb}%`
+
+	predChart.innerHTML = topProbs.map(({ token, prob, id }) => {
+		const pct      = (prob * 100).toFixed(2)
+		const barWidth = (prob / maxProb * 100).toFixed(1)
+		const safe     = token
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+		return `<div class="pred-row">` +
+			`<span class="pred-token" title="id\u00a0${id}">${safe}</span>` +
+			`<div class="pred-bar-wrap"><div class="pred-bar" style="width:${barWidth}%"></div></div>` +
+			`<span class="pred-pct">${pct}%</span>` +
+			`</div>`
+	}).join('')
+}
 </script>
 
 </body>
