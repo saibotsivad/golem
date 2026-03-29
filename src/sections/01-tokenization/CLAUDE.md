@@ -4,7 +4,7 @@ Demonstrates GPT-2 BPE tokenization: takes user text, encodes it with the tokeni
 
 ## Key detail
 
-This section **sets the shared `tokenizer` variable** (declared in `shared.js`). The `AutoTokenizer.from_pretrained` call lives here because its progress/done callbacks update §1's status element. Since the `.then()` fires asynchronously (after all sync JS executes), `tokenizer` is available to §2 and §3 by the time they need it.
+This section **sets the shared `tokenizer` variable** (declared in `shared.js`) by calling `golem.loadTokenizer('Xenova/gpt2', false)` and storing the returned instance. `golem.loadTokenizer` handles REGISTRY updates and progress tracking. The registry key for the GPT-2 tokenizer is `'xenova-gpt2'`. Since the `.then()` fires asynchronously (after all sync JS executes), `tokenizer` is available to §2 and §3 by the time they need it.
 
 ## DOM elements owned
 

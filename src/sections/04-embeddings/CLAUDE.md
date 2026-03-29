@@ -4,8 +4,8 @@ Computes 384-dimensional sentence embeddings for two user-supplied texts using `
 
 ## Shared state used
 
-- `ensureEmbedder(onProgress)` (shared.js) — lazily loads the ~23 MB quantized embedding model
-- `embed(text)` (shared.js) — convenience wrapper returning `Array<number>`
+- `golem.loadEmbedder(onProgress)` — lazily loads the ~23 MB quantized embedding model
+- `golem.embed(text)` — returns `Promise<Array<number>>` (384-dim unit vector)
 - `cosine(a, b)` (shared.js) — cosine similarity
 - `drawEmbedding(canvas, vec, scale)` (shared.js) — renders vector to canvas
 

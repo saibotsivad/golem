@@ -3,14 +3,15 @@
 // It is in scope for all debug panels and section JS files, and is accessible
 // from the browser console for interactive development.
 //
-// golem.modelKey(name)          → registry key string
-// golem.loadTokenizer(name)     → Promise<AutoTokenizer>
-// golem.unloadTokenizer(key)    → Promise<void>
-// golem.tokenizers()            → { [key]: status }
-// golem.tokenize(key, text[, cb]) → [{piece, id}, …]
-// golem.decode(key, ids)        → string
-// golem.loadModel([onProgress]) → Promise<GPT2LMHeadModel>
+// golem.modelKey(name)             → registry key string
+// golem.loadTokenizer(name)        → Promise<AutoTokenizer>
+// golem.unloadTokenizer(key)       → Promise<void>
+// golem.tokenizers()               → { [key]: status }
+// golem.tokenize(key, text[, cb])  → [{piece, id}, …]
+// golem.decode(key, ids)           → string
+// golem.loadModel([onProgress])    → Promise<GPT2LMHeadModel>
 // golem.loadEmbedder([onProgress]) → Promise<void>
+// golem.embed(text)                → Promise<number[]>  (384-dim unit vector)
 
 const _loadedTokenizers = new Map() // registryKey → AutoTokenizer instance
 
@@ -73,8 +74,13 @@ window.golem = {
 		const key = _modelNameToKey(modelName)
 		if (_loadedTokenizers.has(key)) return _loadedTokenizers.get(key)
 
-		REGISTRY[key] = { label: modelName, size: null, status: 'loading', progress: null }
-		registrySet(key, { status: 'loading' }) // Object.assign no-op; fires listeners to surface new row
+		// Preserve any pre-declared REGISTRY entry (label, size); only create a new
+		// one for dynamically-loaded tokenizers not already in the registry.
+		const wasPreregistered = !!REGISTRY[key]
+		if (!wasPreregistered) {
+			REGISTRY[key] = { label: modelName, size: null, status: 'loading', progress: null }
+		}
+		registrySet(key, { status: 'loading' }) // fires listeners to surface row
 
 		try {
 			const tok = await AutoTokenizer.from_pretrained(modelName, {
@@ -88,7 +94,9 @@ window.golem = {
 			registrySet(key, { status: 'ready', progress: null })
 			return tok
 		} catch (err) {
-			registryDelete(key) // remove stuck entry; caller surfaces the error
+			// Pre-declared entries get status 'error'; dynamic entries are removed.
+			if (wasPreregistered) registrySet(key, { status: 'error' })
+			else registryDelete(key)
 			throw err
 		}
 	},
@@ -101,12 +109,10 @@ window.golem = {
 		registryDelete(key)
 	},
 
-	// List all tokenizers known to the page: the static GPT-2 tokenizer (§1)
-	// and any loaded via golem.loadTokenizer.
+	// List all tokenizers loaded via golem.loadTokenizer.
 	// Returns { [registryKey]: status }
 	tokenizers() {
 		const out = {}
-		if (REGISTRY['gpt2-tokenizer']) out['gpt2-tokenizer'] = REGISTRY['gpt2-tokenizer'].status
 		for (const key of _loadedTokenizers.keys()) out[key] = REGISTRY[key]?.status ?? 'ready'
 		return out
 	},
@@ -115,9 +121,8 @@ window.golem = {
 	// callback(piece, id, index) is called for each token if provided — mirrors
 	// real iterative token-processing code so console snippets transfer directly.
 	// Always returns [{piece, id}, …].
-	// 'gpt2-tokenizer' refers to the tokenizer loaded by §1.
 	tokenize(key, text, cb) {
-		const tok = key === 'gpt2-tokenizer' ? tokenizer : _loadedTokenizers.get(key)
+		const tok = _loadedTokenizers.get(key)
 		if (!tok) {
 			const status = REGISTRY[key]?.status
 			if (status) throw new Error(`Tokenizer "${key}" is not usable yet (status: ${status})`)
@@ -131,9 +136,8 @@ window.golem = {
 	},
 
 	// Decode token IDs back to a string. Closes the round-trip from tokenize.
-	// 'gpt2-tokenizer' refers to the tokenizer loaded by §1.
 	decode(key, ids) {
-		const tok = key === 'gpt2-tokenizer' ? tokenizer : _loadedTokenizers.get(key)
+		const tok = _loadedTokenizers.get(key)
 		if (!tok) {
 			const status = REGISTRY[key]?.status
 			if (status) throw new Error(`Tokenizer "${key}" is not usable yet (status: ${status})`)
@@ -147,6 +151,10 @@ window.golem = {
 
 	// Load the all-MiniLM-L6-v2 embedding model (wraps ensureEmbedder from shared.js).
 	async loadEmbedder(onProgress) { return ensureEmbedder(onProgress) },
+
+	// Embed text using all-MiniLM-L6-v2. Loads the model on first call.
+	// Returns Array<number> of 384 dimensions.
+	async embed(text) { return embed(text) },
 }
 
 // Auto-restore tokenizers saved in previous sessions.

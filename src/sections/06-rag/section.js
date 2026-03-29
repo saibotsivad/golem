@@ -1,6 +1,5 @@
 // ── §6 Retrieval-Augmented Generation ─────────────────────────────────────
-// idbGet / idbPut defined in §5 (05-semantic-search/section.js); in scope
-// because all section JS is concatenated into a single module.
+// idbGet / idbPut defined in shared.js and available to all sections.
 // SAMPLING_WORKER_CODE / getSamplingWorker defined in §3 (03-sampling/section.js).
 
 const RAG_CORPUS_VERSION = 'rag-v1'
@@ -71,7 +70,7 @@ ragBuildBtn.addEventListener('click', async () => {
 	ragIndexStatus.textContent = 'Initializing…'
 	registrySet('rag-index', { status: 'loading' })
 	try {
-		await ensureEmbedder(info => {
+		await golem.loadEmbedder(info => {
 			if (info.status === 'progress')
 				ragIndexStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
 			else if (info.status === 'done')
@@ -80,7 +79,7 @@ ragBuildBtn.addEventListener('click', async () => {
 		const allVecs = new Float32Array(RAG_CORPUS.length * RAG_DIMS)
 		for (let i = 0; i < RAG_CORPUS.length; i++) {
 			ragIndexStatus.textContent = `Embedding passage ${i + 1} / ${RAG_CORPUS.length}…`
-			const vec = await embed(RAG_CORPUS[i])
+			const vec = await golem.embed(RAG_CORPUS[i])
 			allVecs.set(vec, i * RAG_DIMS)
 		}
 		ragCorpusVecs = allVecs
@@ -136,7 +135,7 @@ document.getElementById('rag-form').addEventListener('submit', async e => {
 	// ── Step 1: embed query ────────────────────────────────────────────────
 	let qVec
 	try {
-		qVec = await embed(query)
+		qVec = await golem.embed(query)
 	} catch (err) {
 		ragStatus.textContent = 'Error: ' + err.message
 		ragBtn.disabled = false; ragStopBtn.disabled = true; ragStopInline.disabled = true

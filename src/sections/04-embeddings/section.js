@@ -18,13 +18,13 @@ document.getElementById('embed-form').addEventListener('submit', async e => {
 	embedStatus.textContent = 'Initializing…'
 
 	try {
-		await ensureEmbedder(info => {
+		await golem.loadEmbedder(info => {
 			if (info.status === 'progress')
 				embedStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
 			else if (info.status === 'done')
 				embedStatus.textContent = 'Loading model into memory…'
 		})
-		const [vecA, vecB] = await Promise.all([embed(textA), embed(textB)])
+		const [vecA, vecB] = await Promise.all([golem.embed(textA), golem.embed(textB)])
 
 		// Use the same scale for both canvases so patterns are comparable
 		const scale = Math.max(...vecA.map(Math.abs), ...vecB.map(Math.abs))

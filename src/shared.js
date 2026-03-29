@@ -9,7 +9,7 @@ env.allowLocalModels = false
 // 'downloading' = actively fetching from network (progress 0–100)
 // 'ready'   = fully loaded and available in memory
 const REGISTRY = {
-	'gpt2-tokenizer': { label: 'GPT-2 tokenizer',      size: '~800 KB', status: 'unknown', progress: null },
+	'xenova-gpt2':    { label: 'GPT-2 tokenizer',      size: '~800 KB', status: 'unknown', progress: null },
 	'gpt2-lm':        { label: 'GPT-2 LM',             size: '~81 MB',  status: 'unknown', progress: null },
 	'minilm':         { label: 'all-MiniLM-L6-v2',     size: '~23 MB',  status: 'unknown', progress: null },
 	'search-index':   { label: 'Semantic search index', size: null,      status: 'unknown', progress: null },
@@ -33,8 +33,8 @@ async function probeTransformersCache() {
 	try {
 		const cache = await caches.open('transformers-cache')
 		const urls  = (await cache.keys()).map(r => r.url)
-		if (REGISTRY['gpt2-tokenizer'].status === 'unknown')
-			registrySet('gpt2-tokenizer', { status: urls.some(u => u.includes('Xenova/gpt2') && /tokenizer|vocab|merges/.test(u)) ? 'cached' : 'absent' })
+		if (REGISTRY['xenova-gpt2'].status === 'unknown')
+			registrySet('xenova-gpt2', { status: urls.some(u => u.includes('Xenova/gpt2') && /tokenizer|vocab|merges/.test(u)) ? 'cached' : 'absent' })
 		if (REGISTRY['gpt2-lm'].status === 'unknown')
 			registrySet('gpt2-lm',        { status: urls.some(u => u.includes('Xenova/gpt2') && u.includes('onnx')) ? 'cached' : 'absent' })
 		if (REGISTRY['minilm'].status === 'unknown')
@@ -217,6 +217,43 @@ function drawEmbeddingDiff(canvas, vecA, vecB, scale) {
 		ctx.fillStyle = `rgb(${t},${t},${t})`
 		ctx.fillRect(x0, 0, Math.max(1, x1 - x0), h)
 	}
+}
+
+// ── shared IDB helpers for embedding/search indices ────────────────────────
+// DB 'golem', store 'search' — used by §5 and §6 to cache flat Float32Array
+// embedding indices between page loads.
+function _openSearchDb() {
+	return new Promise((resolve, reject) => {
+		const req = indexedDB.open('golem', 1)
+		req.onupgradeneeded = e => {
+			const db = e.target.result
+			if (!db.objectStoreNames.contains('search')) db.createObjectStore('search')
+		}
+		req.onsuccess = e => resolve(e.target.result)
+		req.onerror  = e => reject(e.target.error)
+	})
+}
+async function idbGet(key) {
+	try {
+		const db = await _openSearchDb()
+		return new Promise((resolve, reject) => {
+			const tx  = db.transaction('search', 'readonly')
+			const req = tx.objectStore('search').get(key)
+			req.onsuccess = e => resolve(e.target.result ?? null)
+			req.onerror   = e => reject(e.target.error)
+		})
+	} catch { return null }
+}
+async function idbPut(key, value) {
+	try {
+		const db = await _openSearchDb()
+		return new Promise((resolve, reject) => {
+			const tx  = db.transaction('search', 'readwrite')
+			const req = tx.objectStore('search').put(value, key)
+			req.onsuccess = () => resolve()
+			req.onerror   = e => reject(e.target.error)
+		})
+	} catch {}
 }
 
 function drawEmbeddingGrid(canvas, vecs, count, dims, totalRows) {

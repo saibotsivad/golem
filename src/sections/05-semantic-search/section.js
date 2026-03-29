@@ -68,41 +68,6 @@ const searchList     = document.getElementById('search-list')
 
 let corpusVecs = null  // Float32Array [CORPUS.length × DIMS]
 
-// IndexedDB helpers
-function openDB() {
-	return new Promise((resolve, reject) => {
-		const req = indexedDB.open('golem', 1)
-		req.onupgradeneeded = e => {
-			const db = e.target.result
-			if (!db.objectStoreNames.contains('search')) db.createObjectStore('search')
-		}
-		req.onsuccess = e => resolve(e.target.result)
-		req.onerror  = e => reject(e.target.error)
-	})
-}
-async function idbGet(key) {
-	try {
-		const db = await openDB()
-		return new Promise((resolve, reject) => {
-			const tx  = db.transaction('search', 'readonly')
-			const req = tx.objectStore('search').get(key)
-			req.onsuccess = e => resolve(e.target.result ?? null)
-			req.onerror   = e => reject(e.target.error)
-		})
-	} catch { return null }
-}
-async function idbPut(key, value) {
-	try {
-		const db = await openDB()
-		return new Promise((resolve, reject) => {
-			const tx  = db.transaction('search', 'readwrite')
-			const req = tx.objectStore('search').put(value, key)
-			req.onsuccess = () => resolve()
-			req.onerror   = e => reject(e.target.error)
-		})
-	} catch {}
-}
-
 // Eagerly load from cache on page load
 idbGet(CORPUS_VERSION).then(cached => {
 	if (!cached) { registrySet('search-index', { status: 'absent' }); return }
@@ -120,7 +85,7 @@ buildIndexBtn.addEventListener('click', async () => {
 	indexStatusEl.textContent = 'Initializing…'
 	registrySet('search-index', { status: 'loading' })
 	try {
-		await ensureEmbedder(info => {
+		await golem.loadEmbedder(info => {
 			if (info.status === 'progress')
 				indexStatusEl.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
 			else if (info.status === 'done')
@@ -130,7 +95,7 @@ buildIndexBtn.addEventListener('click', async () => {
 		indexGridRow.hidden = false
 		for (let i = 0; i < CORPUS.length; i++) {
 			indexStatusEl.textContent = `Embedding passage ${i + 1} / ${CORPUS.length}…`
-			const vec = await embed(CORPUS[i])
+			const vec = await golem.embed(CORPUS[i])
 			allVecs.set(vec, i * DIMS)
 			drawEmbeddingGrid(indexGridCanvas, allVecs, i + 1, DIMS, CORPUS.length)
 		}
@@ -157,11 +122,11 @@ document.getElementById('search-form').addEventListener('submit', async e => {
 	searchStatus.textContent = 'Embedding query…'
 
 	try {
-		await ensureEmbedder(info => {
+		await golem.loadEmbedder(info => {
 			if (info.status === 'progress')
 				searchStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
 		})
-		const qVec = await embed(query)
+		const qVec = await golem.embed(query)
 
 		// Dot product = cosine similarity (all vectors are unit-normalized)
 		const scores = []

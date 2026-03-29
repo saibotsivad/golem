@@ -6,15 +6,14 @@ The corpus is 20 passages (2–3 sentences each) about ML/AI concepts, stored as
 
 ## Cross-section dependencies
 
-- `idbGet` / `idbPut` — defined in §5 (`05-semantic-search/section.js`), in scope via single-module concatenation
+- `idbGet` / `idbPut` — defined in `shared.js`, available to all sections
 - `SAMPLING_WORKER_CODE` — defined in §3 (`03-sampling/section.js`), reused verbatim to create `ragWorker` (a separate worker instance to avoid concurrent-use conflicts with §3's `samplingWorker`)
-- `embed()`, `ensureEmbedder()`, `escHtml()` — shared.js
 
 ## Shared state used
 
-- `embed(text)` — embeds query via the shared Web Worker (same all-MiniLM instance as §4–§5)
-- `ensureEmbedder(onProgress)` — triggers model download/load
-- `escHtml(s)` — escapes passage text before innerHTML injection
+- `golem.embed(text)` — embeds query via the shared Web Worker (same all-MiniLM instance as §4–§5)
+- `golem.loadEmbedder(onProgress)` — triggers model download/load
+- `escHtml(s)` (shared.js) — escapes passage text before innerHTML injection
 - `SAMPLING_WORKER_CODE` — generation worker source from §3
 
 ## Compare mode

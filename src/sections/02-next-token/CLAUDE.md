@@ -5,7 +5,7 @@ Runs GPT-2 inference in-browser and displays the full probability distribution o
 ## Shared state used
 
 - `tokenizer` (set by §1) — tokenizes the input prompt
-- `ensureModel(onProgress)` (shared.js) — lazily loads the ~81 MB quantized GPT-2 model
+- `golem.loadModel(onProgress)` — lazily loads the ~81 MB quantized GPT-2 model
 - `softmaxWithTemp`, `getLogits`, `escHtml` (shared.js)
 
 ## DOM elements owned

@@ -19,7 +19,7 @@ async function runPrediction() {
 	predictStatus.textContent = 'Initializing…'
 
 	try {
-		const model = await ensureModel(info => {
+		const model = await golem.loadModel(info => {
 			if (info.status === 'progress')
 				predictStatus.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
 			else if (info.status === 'done')

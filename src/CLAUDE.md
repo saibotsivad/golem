@@ -30,10 +30,10 @@ golem.modelKey('Xenova/bert-base-uncased')   // → 'xenova-bert-base-uncased'
 await golem.loadTokenizer('Xenova/bert-base-uncased')   // load + save to IDB
 await golem.loadTokenizer('Xenova/bloom-560m', false)   // load without saving
 await golem.unloadTokenizer('xenova-bert-base-uncased') // remove from memory + IDB
-golem.tokenizers()    // → { 'gpt2-tokenizer': 'ready', 'xenova-bert-base-uncased': 'ready' }
-golem.tokenize('xenova-bert-base-uncased', 'hello world')          // → [{piece,id},…]
-golem.tokenize('gpt2-tokenizer', 'hello', (piece, id, i) => …)    // with callback
-golem.decode('gpt2-tokenizer', [15496, 11, 995])                   // → 'Hello, world'
+golem.tokenizers()    // → { 'xenova-gpt2': 'ready', 'xenova-bert-base-uncased': 'ready' }
+golem.tokenize('xenova-gpt2', 'hello world')                       // → [{piece,id},…]
+golem.tokenize('xenova-bert-base-uncased', 'hi', (piece, id, i) => …) // with callback
+golem.decode('xenova-gpt2', [15496, 11, 995])                      // → 'Hello, world'
 ```
 
 ### Model / embedder wrappers
@@ -41,6 +41,7 @@ golem.decode('gpt2-tokenizer', [15496, 11, 995])                   // → 'Hello
 ```js
 await golem.loadModel()    // wraps ensureModel(); updates REGISTRY 'gpt2-lm'
 await golem.loadEmbedder() // wraps ensureEmbedder(); updates REGISTRY 'minilm'
+await golem.embed('hello world') // → Array<number> (384-dim unit vector)
 ```
 
 ### IndexedDB persistence
@@ -78,7 +79,7 @@ controls the `saveLocally` argument on form submit.
 - Own your DOM: use unique IDs (prefixed with your section slug, e.g. `#attn-*`) so there are no conflicts with other sections.
 - Do not read or write DOM elements owned by other sections.
 - Do not add variables to `shared.js` unless they are consumed by two or more sections. Keep section-local state inside the section's own JS.
-- Cross-section symbol use (e.g. §6 reusing `idbGet` from §5) is allowed but must be documented in the consuming section's `CLAUDE.md`.
+- Cross-section symbol use is allowed but must be documented in the consuming section's `CLAUDE.md`. Prefer promoting to `shared.js` once a symbol is used by two or more sections.
 
 ---
 
@@ -118,9 +119,8 @@ Call `registrySet(key, update)` to update an entry and notify all subscribers. C
 
 ### Shared variables
 
-- `tokenizer` — GPT-2 BPE tokenizer (`AutoTokenizer`); set by §1, read by §2 and §3.
+- `tokenizer` — GPT-2 BPE tokenizer (`AutoTokenizer`); set by §1 via `golem.loadTokenizer`, read by §2 and §3.
 - `lmModel` — GPT-2 causal LM (`GPT2LMHeadModel`); lazily loaded via `ensureModel(onProgress)`.
-- `embed(text)` — calls `ensureEmbedder()` then returns `Array<number>` (384 dims).
 
 ### Shared helpers
 
@@ -131,8 +131,11 @@ Call `registrySet(key, update)` to update an entry and notify all subscribers. C
 - `drawEmbedding(canvas, vec, scale)` — renders a float vector as a blue/red color bar on a canvas.
 - `drawEmbeddingDiff(canvas, vecA, vecB, scale)` — renders per-dimension absolute difference as a grayscale bar.
 - `drawEmbeddingGrid(canvas, vecs, count, dims, totalRows)` — renders multiple embedding rows in a single canvas.
-- `ensureModel(onProgress)` — lazily loads GPT-2 LM; resolves to the model.
-- `ensureEmbedder(onProgress)` — lazily loads all-MiniLM-L6-v2 via a Web Worker; resolves when ready.
+- `ensureModel(onProgress)` — lazily loads GPT-2 LM; resolves to the model. Prefer `golem.loadModel()` in section code.
+- `ensureEmbedder(onProgress)` — lazily loads all-MiniLM-L6-v2 via a Web Worker. Prefer `golem.loadEmbedder()` in section code.
+- `embed(text)` — calls `ensureEmbedder()` then returns `Array<number>` (384 dims). Prefer `golem.embed()` in section code.
+- `idbGet(key)` — reads from the `'golem'` DB / `'search'` store; used by §5 and §6 to cache embedding indices.
+- `idbPut(key, value)` — writes to the `'golem'` DB / `'search'` store.
 
 ### Rules for adding to shared.js
 

@@ -4,7 +4,9 @@ Semantic search over a fixed corpus of 40 AI/ML concept sentences. Embeddings ar
 
 ## Shared state used
 
-- `ensureEmbedder(onProgress)` (shared.js) — same model instance as §4
+- `golem.loadEmbedder(onProgress)` — same model instance as §4
+- `golem.embed(text)` — embeds passages and query via the shared worker
+- `idbGet(key)` / `idbPut(key, value)` (shared.js) — cache embedding index in IndexedDB
 - `escHtml` (shared.js) — used when rendering result text
 
 ## Corpus versioning

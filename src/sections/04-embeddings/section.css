@@ -6,7 +6,7 @@
 	gap: 0.6rem;
 	margin-bottom: 0.4rem;
 }
-.embed-label { font-size: 0.85rem; color: #555; width: 1.4rem; flex-shrink: 0; }
+.embed-label { font-size: 0.85rem; color: #555; width: 2.4rem; flex-shrink: 0; }
 .embed-canvas {
 	display: block;
 	border: 1px solid #ccc;
