@@ -17,6 +17,10 @@
 <div id="search-index-row">
 	<button type="button" id="build-index-btn">Build search index  [uses same ~23 MB model as §4]</button><span id="index-status"></span>
 </div>
+<div id="index-grid-row" class="embed-row" hidden>
+	<span class="embed-label" id="index-grid-label">index</span>
+	<canvas id="index-grid" class="embed-canvas" width="384" height="240"></canvas>
+</div>
 
 <form id="search-form" class="search-input-row">
 	<input type="text" id="search-query" placeholder="Search by meaning…" disabled>

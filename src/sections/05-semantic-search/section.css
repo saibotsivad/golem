@@ -1,4 +1,6 @@
 /* ── §5 semantic search ── */
+#index-grid { height: 240px; }
+#index-grid-label { width: 2.8rem; }
 #search-index-row { margin-bottom: 0.4rem; }
 #index-status { font-size: 0.85rem; color: #555; margin-left: 0.8rem; }
 .search-input-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }

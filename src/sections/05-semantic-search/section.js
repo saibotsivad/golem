@@ -57,6 +57,8 @@ const CORPUS = [
 
 const buildIndexBtn  = document.getElementById('build-index-btn')
 const indexStatusEl  = document.getElementById('index-status')
+const indexGridRow   = document.getElementById('index-grid-row')
+const indexGridCanvas = document.getElementById('index-grid')
 const searchQueryEl  = document.getElementById('search-query')
 const searchBtn      = document.getElementById('search-btn')
 const searchStatus   = document.getElementById('search-status')
@@ -107,6 +109,8 @@ idbGet(CORPUS_VERSION).then(cached => {
 	corpusVecs = cached
 	registrySet('search-index', { status: 'ready' })
 	indexStatusEl.textContent = `${CORPUS.length} passages (cached)`
+	drawEmbeddingGrid(indexGridCanvas, corpusVecs, CORPUS.length, DIMS)
+	indexGridRow.hidden = false
 	searchQueryEl.disabled = false
 	searchBtn.disabled     = false
 }).catch(() => { registrySet('search-index', { status: 'absent' }) })
@@ -116,17 +120,19 @@ buildIndexBtn.addEventListener('click', async () => {
 	indexStatusEl.textContent = 'Initializing…'
 	registrySet('search-index', { status: 'loading' })
 	try {
-		const ext = await ensureEmbedder(info => {
+		await ensureEmbedder(info => {
 			if (info.status === 'progress')
 				indexStatusEl.textContent = `Downloading model: ${info.progress.toFixed(0)}%`
 			else if (info.status === 'done')
 				indexStatusEl.textContent = 'Loading model…'
 		})
 		const allVecs = new Float32Array(CORPUS.length * DIMS)
+		indexGridRow.hidden = false
 		for (let i = 0; i < CORPUS.length; i++) {
 			indexStatusEl.textContent = `Embedding passage ${i + 1} / ${CORPUS.length}…`
-			const out = await ext(CORPUS[i], { pooling: 'mean', normalize: true })
-			allVecs.set(out.data, i * DIMS)
+			const vec = await embed(CORPUS[i])
+			allVecs.set(vec, i * DIMS)
+			drawEmbeddingGrid(indexGridCanvas, allVecs, i + 1, DIMS, CORPUS.length)
 		}
 		corpusVecs = allVecs
 		await idbPut(CORPUS_VERSION, corpusVecs)

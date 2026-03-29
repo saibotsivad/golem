@@ -85,28 +85,88 @@ function escHtml(s) {
 }
 
 
-// ── shared embedder (§4 and §5) ────────────────────────────────────────────
-let embedder = null
+// ── shared embedder (§4 and §5) — runs in a worker to keep UI responsive ──
+const _EMBED_WORKER_SRC = `
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+env.allowLocalModels = false
+
+let _pipePromise = null
+
+function getPipe() {
+	if (!_pipePromise) {
+		_pipePromise = pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+			quantized: true,
+			progress_callback: info => self.postMessage({ type: 'model_progress', info }),
+		}).then(p => { self.postMessage({ type: 'model_ready' }); return p })
+	}
+	return _pipePromise
+}
+
+self.onmessage = async ({ data }) => {
+	if (data.type === 'load') {
+		await getPipe()
+	} else if (data.type === 'embed') {
+		try {
+			const p   = await getPipe()
+			const out = await p(data.text, { pooling: 'mean', normalize: true })
+			const vec = new Float32Array(out.data)
+			self.postMessage({ type: 'result', id: data.id, vec }, [vec.buffer])
+		} catch (err) {
+			self.postMessage({ type: 'error', id: data.id, message: err.message })
+		}
+	}
+}
+`
+
+const _embedWorker = new Worker(
+	URL.createObjectURL(new Blob([_EMBED_WORKER_SRC], { type: 'text/javascript' })),
+	{ type: 'module' }
+)
+let _embedReady      = false
+let _embedReadyCbs   = []
+let _embedLoadSent   = false
+let _embedNextId     = 0
+const _embedProgressListeners = new Set()
+const _embedPending           = new Map()
+
+_embedWorker.onmessage = ({ data }) => {
+	if (data.type === 'model_progress') {
+		const { info } = data
+		if (info.status === 'progress') registrySet('minilm', { status: 'downloading', progress: info.progress })
+		else if (info.status === 'done') registrySet('minilm', { status: 'loading',    progress: null })
+		for (const fn of _embedProgressListeners) fn(info)
+	} else if (data.type === 'model_ready') {
+		registrySet('minilm', { status: 'ready', progress: null })
+		_embedReady = true
+		for (const fn of _embedReadyCbs) fn()
+		_embedReadyCbs = []
+	} else if (data.type === 'result') {
+		const cb = _embedPending.get(data.id)
+		if (cb) { _embedPending.delete(data.id); cb.resolve(Array.from(data.vec)) }
+	} else if (data.type === 'error') {
+		const cb = _embedPending.get(data.id)
+		if (cb) { _embedPending.delete(data.id); cb.reject(new Error(data.message)) }
+	}
+}
 
 async function ensureEmbedder(onProgress) {
-	if (embedder) return embedder
-	registrySet('minilm', { status: 'loading', progress: null })
-	embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-		quantized: true,
-		progress_callback: info => {
-			if (info.status === 'progress') registrySet('minilm', { status: 'downloading', progress: info.progress })
-			else if (info.status === 'done') registrySet('minilm', { status: 'loading',     progress: null })
-			if (onProgress) onProgress(info)
-		},
-	})
-	registrySet('minilm', { status: 'ready', progress: null })
-	return embedder
+	if (onProgress) _embedProgressListeners.add(onProgress)
+	if (!_embedLoadSent) {
+		_embedLoadSent = true
+		registrySet('minilm', { status: 'loading', progress: null })
+		_embedWorker.postMessage({ type: 'load' })
+	}
+	if (!_embedReady) await new Promise(resolve => _embedReadyCbs.push(resolve))
+	if (onProgress) _embedProgressListeners.delete(onProgress)
 }
 
 async function embed(text) {
-	const ext = await ensureEmbedder()
-	const out = await ext(text, { pooling: 'mean', normalize: true })
-	return Array.from(out.data)
+	await ensureEmbedder()
+	const id = _embedNextId++
+	return new Promise((resolve, reject) => {
+		_embedPending.set(id, { resolve, reject })
+		_embedWorker.postMessage({ type: 'embed', id, text })
+	})
 }
 
 function cosine(a, b) {
@@ -151,6 +211,38 @@ function drawEmbeddingDiff(canvas, vecA, vecB, scale) {
 		const t = Math.round(255 * (1 - Math.min(1, diff)))
 		ctx.fillStyle = `rgb(${t},${t},${t})`
 		ctx.fillRect(x0, 0, Math.max(1, x1 - x0), h)
+	}
+}
+
+function drawEmbeddingGrid(canvas, vecs, count, dims, totalRows) {
+	const ctx = canvas.getContext('2d')
+	const w = canvas.width
+	const rowH = Math.max(1, Math.floor(canvas.height / (totalRows ?? count)))
+	let scale = 0
+	for (let i = 0; i < count * dims; i++) scale = Math.max(scale, Math.abs(vecs[i]))
+	if (scale === 0) scale = 1
+	ctx.clearRect(0, 0, w, canvas.height)
+	for (let row = 0; row < count; row++) {
+		const y0 = row * rowH
+		for (let j = 0; j < dims; j++) {
+			const x0 = Math.floor(j * w / dims)
+			const x1 = Math.floor((j + 1) * w / dims)
+			const v  = vecs[row * dims + j] / scale
+			let r, g, b
+			if (v >= 0) {
+				const t = Math.min(1, v)
+				r = Math.round(255 * (1 - t * 0.5))
+				g = Math.round(255 * (1 - t * 0.5))
+				b = 255
+			} else {
+				const t = Math.min(1, -v)
+				r = 255
+				g = Math.round(255 * (1 - t * 0.5))
+				b = Math.round(255 * (1 - t * 0.5))
+			}
+			ctx.fillStyle = `rgb(${r},${g},${b})`
+			ctx.fillRect(x0, y0, Math.max(1, x1 - x0), rowH)
+		}
 	}
 }
 
