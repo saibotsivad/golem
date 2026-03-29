@@ -66,6 +66,19 @@ window.golem = {
 	// Used by debug panels to distinguish dynamic from static registry entries.
 	_isLoaded(key) { return _loadedTokenizers.has(key) },
 
+	// True if the GPT-2 language model is instantiated in memory this session.
+	// Used by the load-model debug panel to wire its clear button.
+	_isModelLoaded() { return lmModel !== null },
+
+	// Release the GPT-2 language model from memory.
+	// Does not delete browser-cached files — status resets to 'cached' since the
+	// files remain in the Transformers.js cache and can be reloaded without a
+	// network request.
+	async unloadModel() {
+		lmModel = null
+		registrySet('gpt2-lm', { status: 'cached', progress: null })
+	},
+
 	// Load an AutoTokenizer by HuggingFace model name.
 	// saveLocally (default true): write the name to IndexedDB so it auto-restores
 	// on next page visit by re-reading from browser cache (no re-download needed).

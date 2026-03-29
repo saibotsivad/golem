@@ -1,0 +1,26 @@
+<div class="debug-load-lm">
+	<p class="debug-lm-heading">Load language model</p>
+	<div class="debug-lm-row">
+		<button id="debug-lm-btn">Load GPT-2</button>
+	</div>
+	<p class="param-note">Loads <code>Xenova/gpt2</code> — a quantized ONNX export of OpenAI&rsquo;s GPT-2 (124 M parameters, 50,257-token BPE vocabulary). At ~81&nbsp;MB it is the largest single asset on this page. Once loaded it is available to §2 (next-token prediction) and §3 (sampling strategies) without re-downloading; files stay in the browser&rsquo;s <code>transformers-cache</code> between sessions. Contrast with <em>all-MiniLM-L6-v2</em> (~23&nbsp;MB, encoder-only, produces fixed-length embeddings) — GPT-2 is a <em>decoder</em> that generates text token-by-token.</p>
+	<details class="debug-lm-api">
+		<summary>console API</summary>
+<pre>// Check current status before loading
+REGISTRY['gpt2-lm']
+// &rarr; { label: 'GPT-2 LM', size: '~81 MB', status: 'absent' | 'cached', &hellip; }
+
+// Load the model (downloads on first visit, reads from cache after)
+const m = await golem.loadModel()
+// REGISTRY['gpt2-lm'].status &rarr; 'ready'
+
+// The model is now shared across all sections via the module-scope lmModel variable.
+// §2 and §3 call ensureModel() / golem.loadModel() internally — if you load here
+// first, those sections skip the download step entirely.
+
+// Release from memory (browser cache is preserved — next load is instant)
+await golem.unloadModel()
+// REGISTRY['gpt2-lm'].status &rarr; 'cached'</pre>
+	</details>
+	<div id="debug-lm-status" class="section-status"></div>
+</div>

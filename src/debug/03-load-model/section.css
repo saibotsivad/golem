@@ -1,0 +1,14 @@
+.debug-load-lm { border-top: 1px solid #e0e0e0; margin-top: 1rem; padding-top: 1rem; }
+.debug-lm-heading { font-size: 0.85rem; font-weight: bold; color: #333; margin: 0 0 0.5rem; }
+.debug-lm-row { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; margin-bottom: 0.3rem; }
+.debug-lm-api { margin-top: 0.4rem; }
+.debug-lm-api > summary { font-size: 0.8rem; color: #555; cursor: pointer; }
+.debug-lm-api pre {
+	margin: 0.4rem 0 0;
+	font-family: inherit;
+	font-size: 0.8rem;
+	line-height: 1.45;
+	color: #333;
+	overflow-x: auto;
+	padding: 0;
+}
