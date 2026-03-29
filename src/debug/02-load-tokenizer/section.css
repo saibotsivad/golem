@@ -1,4 +1,5 @@
 .debug-load-tok { border-top: 1px solid #e0e0e0; margin-top: 1rem; padding-top: 1rem; }
+.debug-tok-heading { font-size: 0.85rem; font-weight: bold; color: #333; margin: 0 0 0.5rem; }
 .debug-tok-row { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; margin-bottom: 0.3rem; }
 #debug-tok-input {
 	font-family: inherit;
@@ -7,4 +8,15 @@
 	border: 1px solid #000;
 	flex: 1;
 	min-width: 14rem;
+}
+.debug-tok-api { margin-top: 0.4rem; }
+.debug-tok-api > summary { font-size: 0.8rem; color: #555; cursor: pointer; }
+.debug-tok-api pre {
+	margin: 0.4rem 0 0;
+	font-family: inherit;
+	font-size: 0.8rem;
+	line-height: 1.45;
+	color: #333;
+	overflow-x: auto;
+	padding: 0;
 }
