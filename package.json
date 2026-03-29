@@ -1,0 +1,17 @@
+{
+  "name": "golem",
+  "version": "0.0.0",
+  "description": "Automaton with distributed reasoning.",
+  "homepage": "https://saibotsivad.github.io/golem/",
+  "bugs": {
+    "url": "https://github.com/saibotsivad/golem/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/saibotsivad/golem.git"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "echo \"no build yet\""
+  }
+}
