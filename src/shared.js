@@ -1,4 +1,4 @@
-import { AutoTokenizer, GPT2LMHeadModel, pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+import { AutoTokenizer, AutoModelForCausalLM, GPT2LMHeadModel, pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
 
 env.allowLocalModels = false
 
@@ -340,15 +340,20 @@ self.onmessage = async ({ data }) => {
 		}
 
 		if (!lmModel) {
+			self.postMessage({ type: 'model_status', status: 'loading', progress: null })
 			lmModel = await GPT2LMHeadModel.from_pretrained('Xenova/gpt2', {
 				quantized: true,
 				progress_callback: info => {
-					if (info.status === 'progress')
+					if (info.status === 'progress') {
 						self.postMessage({ type: 'status', text: 'Downloading model: ' + info.progress.toFixed(0) + '%' })
-					else if (info.status === 'done')
+						self.postMessage({ type: 'model_status', status: 'downloading', progress: info.progress })
+					} else if (info.status === 'done') {
 						self.postMessage({ type: 'status', text: 'Loading model into memory\u2026' })
+						self.postMessage({ type: 'model_status', status: 'loading', progress: null })
+					}
 				},
 			})
+			self.postMessage({ type: 'model_status', status: 'ready', progress: null })
 		}
 
 		const GPT2_EOS  = 50256

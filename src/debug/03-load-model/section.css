@@ -1,6 +1,15 @@
 .debug-load-lm { border-top: 1px solid #e0e0e0; margin-top: 1rem; padding-top: 1rem; }
 .debug-lm-heading { font-size: 0.85rem; font-weight: bold; color: #333; margin: 0 0 0.5rem; }
 .debug-lm-row { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; margin-bottom: 0.3rem; }
+.debug-lm-save-label { font-size: 0.9rem; color: #555; white-space: nowrap; }
+#debug-lm-input {
+	font-family: inherit;
+	font-size: 0.9rem;
+	padding: 0.15rem 0.4rem;
+	border: 1px solid #000;
+	flex: 1;
+	min-width: 14rem;
+}
 .debug-lm-api { margin-top: 0.4rem; }
 .debug-lm-api > summary { font-size: 0.8rem; color: #555; cursor: pointer; }
 .debug-lm-api pre {

@@ -189,6 +189,11 @@ document.getElementById('rag-form').addEventListener('submit', async e => {
 	worker.onmessage = ({ data }) => {
 		if (data.type === 'status') {
 			ragStatus.textContent = data.text
+		} else if (data.type === 'model_status') {
+			// Mirror §3: reflect worker model loading in REGISTRY only when the
+			// main-thread model is not already loaded.
+			if (!window.golem._isModelLoaded())
+				registrySet('gpt2-lm', { status: data.status, progress: data.progress })
 		} else if (data.type === 'token') {
 			if (data.step === 0) ragGenStart = Date.now()
 			const span = document.createElement('span')

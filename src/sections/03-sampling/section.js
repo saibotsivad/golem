@@ -63,6 +63,12 @@ document.getElementById('sample-form').addEventListener('submit', e => {
 	worker.onmessage = ({ data }) => {
 		if (data.type === 'status') {
 			sampleStatus.textContent = data.text
+		} else if (data.type === 'model_status') {
+			// Worker loads its own GPT-2 instance; reflect that in REGISTRY only when
+			// the main-thread model (golem.loadModel) is not already loaded — avoids
+			// clobbering REGISTRY when §2 has the model loaded on the main thread.
+			if (!window.golem._isModelLoaded())
+				registrySet('gpt2-lm', { status: data.status, progress: data.progress })
 		} else if (data.type === 'token') {
 			const span = document.createElement('span')
 			span.className = 'gen-tok gen-tok-' + (data.step % 2 === 0 ? 'a' : 'b')

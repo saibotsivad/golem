@@ -9,26 +9,39 @@
 // golem.tokenizers()               → { [key]: status }
 // golem.tokenize(key, text[, cb])  → [{piece, id}, …]
 // golem.decode(key, ids)           → string
+// golem.loadLM(name[, save])       → Promise<AutoModelForCausalLM>
+// golem.unloadLM(key)              → Promise<void>
+// golem.models()                   → { [key]: status }
 // golem.loadModel([onProgress])    → Promise<GPT2LMHeadModel>
 // golem.loadEmbedder([onProgress]) → Promise<void>
 // golem.embed(text)                → Promise<number[]>  (384-dim unit vector)
 
 const _loadedTokenizers = new Map() // registryKey → AutoTokenizer instance
+const _loadedLMs        = new Map() // registryKey → AutoModelForCausalLM instance
 
 function _modelNameToKey(name) {
 	return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
-// ── IndexedDB: persist tokenizer names so they auto-restore on next load ──
-// DB 'golem', store 'tokenizers', keyPath 'key', value { key, modelName }
+// ── IndexedDB: persist tokenizer and LM names for auto-restore ─────────────
+// DB 'golem-api' v2, stores: 'tokenizers' and 'models', both keyPath 'key',
+// value { key, modelName }
 function _openGolemDb() {
 	return new Promise((res, rej) => {
-		const r = indexedDB.open('golem-api', 1)
-		r.onupgradeneeded = e => e.target.result.createObjectStore('tokenizers', { keyPath: 'key' })
+		const r = indexedDB.open('golem-api', 2)
+		r.onupgradeneeded = e => {
+			const db = e.target.result
+			if (!db.objectStoreNames.contains('tokenizers'))
+				db.createObjectStore('tokenizers', { keyPath: 'key' })
+			if (!db.objectStoreNames.contains('models'))
+				db.createObjectStore('models', { keyPath: 'key' })
+		}
 		r.onsuccess = e => res(e.target.result)
 		r.onerror = () => rej(r.error)
 	})
 }
+
+// ── tokenizer IDB helpers ──────────────────────────────────────────────────
 async function _idbTokGetAll() {
 	const db = await _openGolemDb()
 	return new Promise((res, rej) => {
@@ -56,6 +69,34 @@ async function _idbTokDelete(key) {
 	})
 }
 
+// ── LM IDB helpers ─────────────────────────────────────────────────────────
+async function _idbLMGetAll() {
+	const db = await _openGolemDb()
+	return new Promise((res, rej) => {
+		const req = db.transaction('models', 'readonly').objectStore('models').getAll()
+		req.onsuccess = () => res(req.result)
+		req.onerror = () => rej(req.error)
+	})
+}
+async function _idbLMPut(key, modelName) {
+	const db = await _openGolemDb()
+	return new Promise((res, rej) => {
+		const tx = db.transaction('models', 'readwrite')
+		tx.objectStore('models').put({ key, modelName })
+		tx.oncomplete = res
+		tx.onerror = () => rej(tx.error)
+	})
+}
+async function _idbLMDelete(key) {
+	const db = await _openGolemDb()
+	return new Promise((res, rej) => {
+		const tx = db.transaction('models', 'readwrite')
+		tx.objectStore('models').delete(key)
+		tx.oncomplete = res
+		tx.onerror = () => rej(tx.error)
+	})
+}
+
 // ── public API ─────────────────────────────────────────────────────────────
 window.golem = {
 	// Convert a HuggingFace model name to its REGISTRY key.
@@ -66,8 +107,12 @@ window.golem = {
 	// Used by debug panels to distinguish dynamic from static registry entries.
 	_isLoaded(key) { return _loadedTokenizers.has(key) },
 
+	// True if the given registry key is a causal LM instance held by golem.loadLM.
+	// Does not cover the fixed GPT-2 model managed by golem.loadModel / lmModel.
+	_isLMLoaded(key) { return _loadedLMs.has(key) },
+
 	// True if the GPT-2 language model is instantiated in memory this session.
-	// Used by the load-model debug panel to wire its clear button.
+	// Used by debug panels and §3/§6 REGISTRY guards.
 	_isModelLoaded() { return lmModel !== null },
 
 	// Release the GPT-2 language model from memory.
@@ -159,6 +204,55 @@ window.golem = {
 		return tok.decode(ids, { skip_special_tokens: true })
 	},
 
+	// Load an arbitrary causal LM by HuggingFace model name via AutoModelForCausalLM.
+	// Registry key is the model slug with a '-lm' suffix to avoid collisions with
+	// tokenizer keys (e.g. 'Xenova/distilgpt2' → 'xenova-distilgpt2-lm').
+	// saveLocally (default true): persist in IndexedDB for auto-restore on next visit.
+	// Returns the AutoModelForCausalLM instance.
+	async loadLM(modelName, saveLocally = true) {
+		const key = _modelNameToKey(modelName) + '-lm'
+		if (_loadedLMs.has(key)) return _loadedLMs.get(key)
+
+		if (!REGISTRY[key]) {
+			REGISTRY[key] = { label: modelName, size: null, status: 'loading', progress: null }
+		}
+		registrySet(key, { status: 'loading' })
+
+		try {
+			const model = await AutoModelForCausalLM.from_pretrained(modelName, {
+				quantized: true,
+				progress_callback: info => {
+					if (info.status === 'progress') registrySet(key, { status: 'downloading', progress: info.progress })
+					else if (info.status === 'done')  registrySet(key, { status: 'loading',     progress: null })
+				},
+			})
+			_loadedLMs.set(key, model)
+			if (saveLocally) await _idbLMPut(key, modelName)
+			registrySet(key, { status: 'ready', progress: null })
+			return model
+		} catch (err) {
+			registryDelete(key)
+			throw err
+		}
+	},
+
+	// Remove a causal LM from memory and from IndexedDB.
+	// The REGISTRY row disappears and the auto-restore entry is deleted.
+	async unloadLM(key) {
+		_loadedLMs.delete(key)
+		try { await _idbLMDelete(key) } catch {}
+		registryDelete(key)
+	},
+
+	// List all causal LMs loaded via golem.loadLM.
+	// Returns { [registryKey]: status }
+	// Note: does not include the fixed GPT-2 model managed by golem.loadModel().
+	models() {
+		const out = {}
+		for (const key of _loadedLMs.keys()) out[key] = REGISTRY[key]?.status ?? 'ready'
+		return out
+	},
+
 	// Load the GPT-2 language model (wraps ensureModel from shared.js).
 	async loadModel(onProgress) { return ensureModel(onProgress) },
 
@@ -178,5 +272,14 @@ window.golem = {
 	try { saved = await _idbTokGetAll() } catch { return }
 	for (const { modelName } of saved) {
 		try { await window.golem.loadTokenizer(modelName, false) } catch {}
+	}
+})()
+
+// Auto-restore causal LMs saved in previous sessions.
+;(async () => {
+	let saved
+	try { saved = await _idbLMGetAll() } catch { return }
+	for (const { modelName } of saved) {
+		try { await window.golem.loadLM(modelName, false) } catch {}
 	}
 })()
