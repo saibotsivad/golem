@@ -19,10 +19,17 @@
 // golem.embedWith(key, text)       → Promise<number[]>  (unit vector)
 // golem.loadEmbedder([onProgress]) → Promise<void>  (all-MiniLM-L6-v2 shorthand)
 // golem.embed(text)                → Promise<number[]>  (384-dim unit vector, auto-loads MiniLM)
+//
+// Vector index management
+// golem.loadIndex(key, label)               → Promise<Float32Array|null>
+// golem.saveIndex(key, label, data)         → Promise<void>
+// golem.deleteIndex(key)                    → Promise<void>
+// golem.indexes()                           → { [key]: status }
 
 const _loadedTokenizers = new Map() // registryKey → AutoTokenizer instance
 const _loadedLMs        = new Map() // registryKey → AutoModelForCausalLM instance
 const _loadedEmbedders  = new Map() // registryKey → { worker, nextId, pending }
+const _indexKeys        = new Set() // registryKeys that are vector indices
 
 // Capture REGISTRY keys that existed at startup so unloadLM knows whether to
 // reset a pre-declared entry to 'cached' or remove it entirely.
@@ -86,6 +93,44 @@ async function _idbLMDelete(key) {
 		tx.objectStore('models').delete(key)
 		tx.oncomplete = res
 		tx.onerror = () => rej(tx.error)
+	})
+}
+
+// ── IDB helpers — search (index) store ────────────────────────────────────
+// Uses _openDb() from shared.js (same 'golem' DB, 'search' store).
+// The 'search' store uses out-of-line keys (no keyPath), so put() takes (value, key).
+async function _idbIdxGet(key) {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const req = db.transaction('search', 'readonly').objectStore('search').get(key)
+		req.onsuccess = () => res(req.result ?? null)
+		req.onerror   = () => rej(req.error)
+	})
+}
+async function _idbIdxPut(key, value) {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const tx = db.transaction('search', 'readwrite')
+		tx.objectStore('search').put(value, key)
+		tx.oncomplete = res
+		tx.onerror    = () => rej(tx.error)
+	})
+}
+async function _idbIdxDelete(key) {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const tx = db.transaction('search', 'readwrite')
+		tx.objectStore('search').delete(key)
+		tx.oncomplete = res
+		tx.onerror    = () => rej(tx.error)
+	})
+}
+async function _idbIdxGetAllKeys() {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const req = db.transaction('search', 'readonly').objectStore('search').getAllKeys()
+		req.onsuccess = () => res(req.result)
+		req.onerror   = () => rej(req.error)
 	})
 }
 
@@ -420,6 +465,55 @@ window.golem = {
 		await window.golem.loadEmbedder()
 		return window.golem.embedWith('xenova-all-minilm-l6-v2-emb', text)
 	},
+
+	// ── Vector index management ───────────────────────────────────────────────
+
+	// Load an embedding index from IndexedDB.
+	// Initializes the REGISTRY entry with the given label; updates label if entry
+	// already exists. Returns Float32Array if found in IDB, null if absent.
+	// Never throws — IDB errors are treated as absent.
+	async loadIndex(key, label) {
+		if (!REGISTRY[key]) {
+			REGISTRY[key] = { label, size: null, status: 'unknown', progress: null }
+		} else if (label) {
+			REGISTRY[key].label = label
+		}
+		_indexKeys.add(key)
+		try {
+			const data = await _idbIdxGet(key)
+			registrySet(key, { status: data ? 'ready' : 'absent' })
+			return data ?? null
+		} catch {
+			registrySet(key, { status: 'absent' })
+			return null
+		}
+	},
+
+	// Save an embedding index to IndexedDB and mark it ready in the registry.
+	async saveIndex(key, label, data) {
+		if (!REGISTRY[key]) {
+			REGISTRY[key] = { label, size: null, status: 'unknown', progress: null }
+		} else if (label) {
+			REGISTRY[key].label = label
+		}
+		_indexKeys.add(key)
+		await _idbIdxPut(key, data)
+		registrySet(key, { status: 'ready', progress: null })
+	},
+
+	// Delete an embedding index from IndexedDB and mark it absent in the registry.
+	async deleteIndex(key) {
+		await _idbIdxDelete(key)
+		if (REGISTRY[key]) registrySet(key, { status: 'absent', progress: null })
+	},
+
+	// List all tracked embedding indices.
+	// Returns { [key]: status } matching the shape of golem.models() / golem.tokenizers().
+	indexes() {
+		const out = {}
+		for (const key of _indexKeys) out[key] = REGISTRY[key]?.status ?? 'unknown'
+		return out
+	},
 }
 
 // Auto-restore tokenizers saved in previous sessions.
@@ -446,5 +540,22 @@ window.golem = {
 	try { saved = await _idbEmbGetAll() } catch { return }
 	for (const { modelName } of saved) {
 		try { await window.golem.loadEmb(modelName, false) } catch {}
+	}
+})()
+
+// Auto-discover vector indices saved in previous sessions.
+// Sections call loadIndex() on page load with proper labels; this runs concurrently
+// and registers any IDB keys that arrive first, using the key itself as a fallback label.
+;(async () => {
+	let keys
+	try { keys = await _idbIdxGetAllKeys() } catch { return }
+	for (const key of keys) {
+		_indexKeys.add(key)
+		if (!REGISTRY[key]) {
+			REGISTRY[key] = { label: key, size: null, status: 'cached', progress: null }
+			registrySet(key, { status: 'cached' })
+		} else if (REGISTRY[key].status === 'unknown') {
+			registrySet(key, { status: 'cached' })
+		}
 	}
 })()

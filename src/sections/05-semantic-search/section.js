@@ -70,21 +70,20 @@ const searchList     = document.getElementById('search-list')
 let corpusVecs = null  // Float32Array [CORPUS.length × DIMS]
 
 // Eagerly load from cache on page load
-idbGet(CORPUS_VERSION).then(cached => {
-	if (!cached) { registrySet('search-index', { status: 'absent' }); return }
+golem.loadIndex(CORPUS_VERSION, 'Semantic search index').then(cached => {
+	if (!cached) return
 	corpusVecs = cached
-	registrySet('search-index', { status: 'ready' })
 	indexStatusEl.textContent = `${CORPUS.length} passages (cached)`
 	drawEmbeddingGrid(indexGridCanvas, corpusVecs, CORPUS.length, DIMS)
 	indexGridRow.hidden = false
 	searchQueryEl.disabled = false
 	searchBtn.disabled     = false
-}).catch(() => { registrySet('search-index', { status: 'absent' }) })
+})
 
 buildIndexBtn.addEventListener('click', async () => {
 	buildIndexBtn.disabled   = true
 	indexStatusEl.textContent = 'Initializing…'
-	registrySet('search-index', { status: 'loading' })
+	registrySet(CORPUS_VERSION, { status: 'loading' })
 	try {
 		await golem.loadEmbedder(info => {
 			if (info.status === 'progress')
@@ -101,14 +100,13 @@ buildIndexBtn.addEventListener('click', async () => {
 			drawEmbeddingGrid(indexGridCanvas, allVecs, i + 1, DIMS, CORPUS.length)
 		}
 		corpusVecs = allVecs
-		await idbPut(CORPUS_VERSION, corpusVecs)
-		registrySet('search-index', { status: 'ready' })
+		await golem.saveIndex(CORPUS_VERSION, 'Semantic search index', corpusVecs)
 		indexStatusEl.textContent = `${CORPUS.length} passages indexed and cached`
 		searchQueryEl.disabled = false
 		searchBtn.disabled     = false
 		buildIndexBtn.disabled = false
 	} catch (err) {
-		registrySet('search-index', { status: 'absent' })
+		registrySet(CORPUS_VERSION, { status: 'absent' })
 		indexStatusEl.textContent = 'Error: ' + err.message
 		buildIndexBtn.disabled = false
 	}

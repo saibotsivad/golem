@@ -29,6 +29,24 @@ function renderCurrentState() {
 registrySubscribe(renderCurrentState)
 renderCurrentState()
 
+// Auto-wire ✕ clear buttons for vector indices managed by golem.
+// Runs on every registry change; adds a clear fn whenever an index becomes ready/cached,
+// self-removing when called so the button disappears after deletion.
+registrySubscribe(() => {
+	let added = false
+	for (const key of Object.keys(window.golem.indexes())) {
+		const status = REGISTRY[key]?.status
+		if ((status === 'ready' || status === 'cached') && !_debugClearFns.has(key)) {
+			_debugClearFns.set(key, async () => {
+				_debugClearFns.delete(key)
+				await window.golem.deleteIndex(key)
+			})
+			added = true
+		}
+	}
+	if (added) renderCurrentState()
+})
+
 // Event delegation for clear buttons — attached once, survives innerHTML replacements
 document.getElementById('debug-state-rows').addEventListener('click', e => {
 	const btn = e.target.closest('[data-clear-key]')

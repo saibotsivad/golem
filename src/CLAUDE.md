@@ -51,6 +51,24 @@ await golem.embedWith('xenova-all-minilm-l6-v2-emb', 'hello') // → Array<numbe
 await golem.embed('hello world') // → Array<number> (384-dim unit vector, auto-loads MiniLM)
 ```
 
+### Vector index management
+
+```js
+// key = IDB key and REGISTRY key (e.g. 'v1', 'rag-v1')
+// label = human-readable name shown in the debug panel
+const data = await golem.loadIndex('v1', 'Semantic search index') // → Float32Array | null
+await golem.saveIndex('v1', 'Semantic search index', float32Array) // save + mark ready
+await golem.deleteIndex('v1') // delete from IDB + mark absent
+golem.indexes() // → { 'v1': 'ready', 'rag-v1': 'cached' }
+```
+
+`loadIndex` initializes the REGISTRY entry with the given label (or updates it), probes IDB,
+and sets status to `'ready'` if found or `'absent'` if not. It never throws.
+`saveIndex` writes to IDB and sets status to `'ready'`. `deleteIndex` removes from IDB and
+sets status to `'absent'`. On page load, `golem.js` auto-discovers any IDB keys not yet in
+REGISTRY and registers them with status `'cached'`. The debug panel auto-wires ✕ clear
+buttons for all entries reported by `golem.indexes()`.
+
 LM registry keys use a `-lm` suffix to avoid collision with tokenizer keys
 (e.g. `Xenova/gpt2` tokenizer → `xenova-gpt2`; model → `xenova-gpt2-lm`).
 
@@ -62,13 +80,12 @@ cached instance immediately.
 ### IndexedDB persistence
 
 All persistence uses the single `'golem'` database (v3) with four stores:
-- `'search'` — `Float32Array` embedding indices (§5, §6); keyed by corpus version string
+- `'search'` — `Float32Array` embedding indices (§5, §6); managed via `golem.loadIndex`/`saveIndex`/`deleteIndex`
 - `'tokenizers'` — `{ key, modelName }` for tokenizer auto-restore
 - `'models'` — `{ key, modelName }` for LM auto-restore
 - `'embedders'` — `{ key, modelName }` for embedder auto-restore
 
-On page load, `golem.js` auto-restores saved tokenizers, LMs, and embedders by re-reading
-from browser cache — no re-download needed if files were previously fetched.
+On page load, `golem.js` auto-restores saved tokenizers, LMs, embedders, and index keys.
 
 `loadTokenizer`/`loadLM`/`loadEmb` with `saveLocally = true` (the default) write to IDB.
 `unloadTokenizer`/`unloadLM`/`unloadEmb` delete from IDB. The debug panels' "save locally"
@@ -125,11 +142,13 @@ checkboxes control the `saveLocally` argument on form submit.
 
 ### Model registry
 
-`REGISTRY` tracks the load status of every heavyweight asset. Add an entry here when introducing a new lazily-loaded model or index:
+`REGISTRY` tracks the load status of every heavyweight asset. Add a static entry here for models (tokenizers, LMs, embedders) with known sizes:
 
 ```js
 'my-model': { label: 'Human-readable name', size: '~X MB', status: 'unknown', progress: null },
 ```
+
+Vector indices do **not** need static entries — they are registered dynamically by `golem.loadIndex` / `golem.saveIndex` and auto-discovered on page load.
 
 Status lifecycle: `unknown` → (`absent` | `cached`) → `loading` → `downloading` (0–100%) → `loading` → `ready` | `error`.
 
@@ -144,9 +163,7 @@ Call `registrySet(key, update)` to update an entry and notify all subscribers. C
 - `drawEmbedding(canvas, vec, scale)` — renders a float vector as a blue/red color bar on a canvas.
 - `drawEmbeddingDiff(canvas, vecA, vecB, scale)` — renders per-dimension absolute difference as a grayscale bar.
 - `drawEmbeddingGrid(canvas, vecs, count, dims, totalRows)` — renders multiple embedding rows in a single canvas.
-- `_openDb()` — opens the `'golem'` v3 IndexedDB with all four stores (`search`, `tokenizers`, `models`, `embedders`). Used by `idbGet`/`idbPut` and by `golem.js` IDB helpers.
-- `idbGet(key)` — reads from the `'golem'` DB / `'search'` store; used by §5 and §6 to cache embedding indices.
-- `idbPut(key, value)` — writes to the `'golem'` DB / `'search'` store.
+- `_openDb()` — opens the `'golem'` v3 IndexedDB with all four stores (`search`, `tokenizers`, `models`, `embedders`). Used by `golem.js` IDB helpers.
 - `SAMPLING_WORKER_CODE` — GPT-2 generation worker source string; used by §3 and §6 to each create their own independent `Worker` instance.
 
 ### Rules for adding to shared.js

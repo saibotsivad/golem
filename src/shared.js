@@ -12,8 +12,6 @@ const REGISTRY = {
 	'xenova-gpt2':    { label: 'GPT-2 tokenizer',      size: '~800 KB', status: 'unknown', progress: null },
 	'xenova-gpt2-lm': { label: 'GPT-2 LM',             size: '~81 MB',  status: 'unknown', progress: null },
 	'xenova-all-minilm-l6-v2-emb': { label: 'all-MiniLM-L6-v2 embedder', size: '~23 MB', status: 'unknown', progress: null },
-	'search-index':   { label: 'Semantic search index', size: null,      status: 'unknown', progress: null },
-	'rag-index':      { label: 'RAG index',             size: null,      status: 'unknown', progress: null },
 }
 const _registryListeners = []
 function registrySubscribe(fn) { _registryListeners.push(fn) }
@@ -113,9 +111,9 @@ function drawEmbeddingDiff(canvas, vecA, vecB, scale) {
 	}
 }
 
-// ── shared IDB helpers ─────────────────────────────────────────────────────
+// ── shared IDB helper ──────────────────────────────────────────────────────
 // Single DB 'golem' v3. Stores:
-//   'search'     — flat Float32Array embedding indices (§5 and §6)
+//   'search'     — flat Float32Array embedding indices (§5 and §6); managed by golem.js
 //   'tokenizers' — { key, modelName } entries for auto-restore (golem.js)
 //   'models'     — { key, modelName } entries for auto-restore (golem.js)
 //   'embedders'  — { key, modelName } entries for embedder auto-restore (golem.js)
@@ -132,28 +130,6 @@ function _openDb() {
 		req.onsuccess = e => resolve(e.target.result)
 		req.onerror  = e => reject(e.target.error)
 	})
-}
-async function idbGet(key) {
-	try {
-		const db = await _openDb()
-		return new Promise((resolve, reject) => {
-			const tx  = db.transaction('search', 'readonly')
-			const req = tx.objectStore('search').get(key)
-			req.onsuccess = e => resolve(e.target.result ?? null)
-			req.onerror   = e => reject(e.target.error)
-		})
-	} catch { return null }
-}
-async function idbPut(key, value) {
-	try {
-		const db = await _openDb()
-		return new Promise((resolve, reject) => {
-			const tx  = db.transaction('search', 'readwrite')
-			const req = tx.objectStore('search').put(value, key)
-			req.onsuccess = () => resolve()
-			req.onerror   = e => reject(e.target.error)
-		})
-	} catch {}
 }
 
 // ── GPT-2 sampling worker source ──────────────────────────────────────────

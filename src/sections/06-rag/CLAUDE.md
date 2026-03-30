@@ -6,13 +6,14 @@ The corpus is 20 passages (2–3 sentences each) about ML/AI concepts, stored as
 
 ## Cross-section dependencies
 
-- `idbGet` / `idbPut` — defined in `shared.js`, available to all sections
+- `golem.loadIndex` / `golem.saveIndex` — defined in `golem.js`, used for IDB persistence
 - `SAMPLING_WORKER_CODE` — defined in `shared.js`, reused verbatim to create `ragWorker` (a separate worker instance to avoid concurrent-use conflicts with §3's `samplingWorker`)
 
 ## Shared state used
 
 - `golem.embed(text)` — embeds query via the shared Web Worker (same all-MiniLM instance as §4–§5)
 - `golem.loadEmbedder(onProgress)` — triggers model download/load
+- `golem.loadIndex(key, label)` / `golem.saveIndex(key, label, data)` — IDB persistence for the embedding index
 - `escHtml(s)` (shared.js) — escapes passage text before innerHTML injection
 - `SAMPLING_WORKER_CODE` — generation worker source from §3
 

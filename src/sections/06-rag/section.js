@@ -1,5 +1,5 @@
 // ── §6 Retrieval-Augmented Generation ─────────────────────────────────────
-// idbGet / idbPut defined in shared.js and available to all sections.
+// golem.loadIndex / golem.saveIndex manage IDB persistence for the RAG corpus vectors.
 // SAMPLING_WORKER_CODE defined in shared.js (also used by §3).
 {
 const RAG_CORPUS_VERSION = 'rag-v1'
@@ -55,20 +55,19 @@ const ragMetaWithout    = document.getElementById('rag-meta-without')
 let ragCorpusVecs = null  // Float32Array [RAG_CORPUS.length × RAG_DIMS]
 
 // ── load cached index on page start ───────────────────────────────────────
-idbGet(RAG_CORPUS_VERSION).then(cached => {
-	if (!cached) { registrySet('rag-index', { status: 'absent' }); return }
+golem.loadIndex(RAG_CORPUS_VERSION, 'RAG index').then(cached => {
+	if (!cached) return
 	ragCorpusVecs = cached
-	registrySet('rag-index', { status: 'ready' })
 	ragIndexStatus.textContent = `${RAG_CORPUS.length} passages (cached)`
 	ragBtn.disabled = false
-}).catch(() => { registrySet('rag-index', { status: 'absent' }) })
+})
 
 // ── build index ────────────────────────────────────────────────────────────
 ragBuildBtn.addEventListener('click', async () => {
 	ragBuildBtn.disabled = true
 	ragBtn.disabled      = true
 	ragIndexStatus.textContent = 'Initializing…'
-	registrySet('rag-index', { status: 'loading' })
+	registrySet(RAG_CORPUS_VERSION, { status: 'loading' })
 	try {
 		await golem.loadEmbedder(info => {
 			if (info.status === 'progress')
@@ -83,13 +82,12 @@ ragBuildBtn.addEventListener('click', async () => {
 			allVecs.set(vec, i * RAG_DIMS)
 		}
 		ragCorpusVecs = allVecs
-		await idbPut(RAG_CORPUS_VERSION, ragCorpusVecs)
-		registrySet('rag-index', { status: 'ready' })
+		await golem.saveIndex(RAG_CORPUS_VERSION, 'RAG index', ragCorpusVecs)
 		ragIndexStatus.textContent = `${RAG_CORPUS.length} passages indexed and cached`
 		ragBtn.disabled      = false
 		ragBuildBtn.disabled = false
 	} catch (err) {
-		registrySet('rag-index', { status: 'error' })
+		registrySet(RAG_CORPUS_VERSION, { status: 'error' })
 		ragIndexStatus.textContent = 'Error: ' + err.message
 		ragBuildBtn.disabled = false
 	}

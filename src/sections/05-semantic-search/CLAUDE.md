@@ -6,12 +6,12 @@ Semantic search over a fixed corpus of 40 AI/ML concept sentences. Embeddings ar
 
 - `golem.loadEmbedder(onProgress)` — same model instance as §4
 - `golem.embed(text)` — embeds passages and query via the shared worker
-- `idbGet(key)` / `idbPut(key, value)` (shared.js) — cache embedding index in IndexedDB
+- `golem.loadIndex(key, label)` / `golem.saveIndex(key, label, data)` (golem.js) — cache embedding index in IndexedDB
 - `escHtml` (shared.js) — used when rendering result text
 
 ## Corpus versioning
 
-`CORPUS_VERSION = 'v1'` is the IndexedDB key. If the corpus changes, bump this string so users automatically rebuild the index rather than searching against stale embeddings.
+`CORPUS_VERSION = 'v1'` is the IndexedDB key and the REGISTRY key. If the corpus changes, bump this string so users automatically rebuild the index rather than searching against stale embeddings.
 
 ## DOM elements owned
 
