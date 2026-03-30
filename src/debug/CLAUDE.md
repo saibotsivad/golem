@@ -18,7 +18,7 @@ Directories are sorted alphabetically at build time, so use a `NN-` numeric pref
 
 All debug panel JS has access to:
 
-- `REGISTRY` — live status of every tracked asset (`gpt2-tokenizer`, `gpt2-lm`, `minilm`, `search-index`, `rag-index`)
+- `REGISTRY` — live status of every tracked asset (`xenova-gpt2`, `xenova-gpt2-lm`, `minilm`, `search-index`, `rag-index`)
 - `registrySubscribe(fn)` — register a zero-argument callback invoked whenever any registry entry changes
 - All other helpers from `shared.js` (`embed`, `cosine`, `escHtml`, etc.)
 

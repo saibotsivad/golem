@@ -6,12 +6,12 @@ Autoregressive text generation loop using GPT-2. Supports four strategies: greed
 
 Unlike §2 which runs a single forward pass on the main thread, §3 runs many sequential forward passes (one per generated token). These run inside a Web Worker (`SAMPLING_WORKER_CODE`) so the UI stays responsive. As a result, the model instance lives in the worker, not in `lmModel` on the main thread. `golem.loadModel()` is intentionally not called from this section — the worker manages its own GPT-2 instance.
 
-To keep the debug panel accurate, the section handles `{ type: 'model_status', status, progress }` messages from the worker and calls `registrySet('gpt2-lm', …)` — but only when `window.golem._isModelLoaded()` is false, so the worker never clobbers REGISTRY when §2 has the model loaded on the main thread.
+To keep the debug panel accurate, the section handles `{ type: 'model_status', status, progress }` messages from the worker and calls `registrySet('xenova-gpt2-lm', …)` — but only when `window.golem._isModelLoaded()` is false, so the worker never clobbers REGISTRY when §2 has the model loaded on the main thread.
 
 ## Shared state used
 
 - `SAMPLING_WORKER_CODE` (shared.js) — worker source string; also used by §6
-- `registrySet` (shared.js) — updates `gpt2-lm` status based on `model_status` worker messages
+- `registrySet` (shared.js) — updates `xenova-gpt2-lm` status based on `model_status` worker messages
 - `window.golem._isModelLoaded()` (golem.js) — guards REGISTRY updates so the worker doesn't clobber the main-thread model state
 
 ## Key implementation note

@@ -6,29 +6,26 @@
 			<label class="debug-lm-save-label"><input type="checkbox" id="debug-lm-save" checked> save locally</label>
 			<button type="submit" id="debug-lm-btn">Load</button>
 		</div>
-		<p class="param-note">HuggingFace model name for <code>AutoModelForCausalLM.from_pretrained</code>. Try <code>Xenova/distilgpt2</code> &mdash; a distilled GPT-2 (82&nbsp;M parameters, ~40&nbsp;MB quantized) that shares GPT-2&rsquo;s tokenizer and vocabulary; useful for comparing generation quality against the full model at half the weight. For a heavier test: <code>Xenova/gpt2-medium</code> &mdash; 345&nbsp;M parameters, ~170&nbsp;MB quantized, same tokenizer. Registry keys get a <code>-lm</code> suffix to avoid collision with tokenizer keys (e.g. <code>xenova-distilgpt2-lm</code>). Note: the GPT-2 model used by &sect;2 and &sect;3 is tracked separately as <code>gpt2-lm</code> and loaded via <code>golem.loadModel()</code>, not this form.</p>
+		<p class="param-note">HuggingFace model name for <code>AutoModelForCausalLM.from_pretrained</code>. Try <code>Xenova/distilgpt2</code> &mdash; a distilled GPT-2 (82&nbsp;M parameters, ~40&nbsp;MB quantized) that shares GPT-2&rsquo;s tokenizer and vocabulary; useful for comparing generation quality against the full model at half the weight. For a heavier test: <code>Xenova/gpt2-medium</code> &mdash; 345&nbsp;M parameters, ~170&nbsp;MB quantized, same tokenizer. Registry keys get a <code>-lm</code> suffix (e.g. <code>xenova-distilgpt2-lm</code>). Loading <code>Xenova/gpt2</code> here pre-warms the same <code>xenova-gpt2-lm</code> instance that &sect;2 and &sect;3 use via <code>golem.loadModel()</code> &mdash; no duplicate download.</p>
 		<details class="debug-lm-api">
 			<summary>console API</summary>
 <pre>// What's loaded?
 golem.models()
 // &rarr; { 'xenova-distilgpt2-lm': 'ready' }
 
-// Load DistilGPT-2 (same tokenizer as GPT-2, already available as 'xenova-gpt2')
-const m = await golem.loadLM('Xenova/distilgpt2')
+// Pre-warm the GPT-2 model used by §2/§3 &mdash; same instance, no duplicate
+const m = await golem.loadLM('Xenova/gpt2')
+// REGISTRY['xenova-gpt2-lm'].status &rarr; 'ready'
+// §2's golem.loadModel() returns the same cached instance immediately
+
+// Load DistilGPT-2 for comparison (same tokenizer as GPT-2)
+const d = await golem.loadLM('Xenova/distilgpt2')
 // REGISTRY key: 'xenova-distilgpt2-lm'
 
-// Run inference — pair with a matching tokenizer
-// (DistilGPT-2 uses the same tokenizer as GPT-2)
-await golem.loadTokenizer('Xenova/gpt2', false)
-const inputs = _loadedTokenizers  // tokenizers are internal; use golem.tokenize() for pieces
-// For raw inference, use the returned model directly &mdash; same interface as §2:
-//   const tok = AutoTokenizer.from_pretrained(...)  // not available outside worker
-//   const out = await m(tok('Hello world'))
-//   See §2 (next-token prediction) source for how inputs &rarr; m(inputs) &rarr; logits works
-
 // Release from memory (browser cache stays &mdash; next load is instant)
-await golem.unloadLM('xenova-distilgpt2-lm')
-// REGISTRY row is removed; auto-restore entry is deleted from IndexedDB</pre>
+// Pre-declared entry (xenova-gpt2-lm) resets to 'cached'; dynamic entries are removed
+await golem.unloadLM('xenova-gpt2-lm')
+await golem.unloadLM('xenova-distilgpt2-lm')</pre>
 		</details>
 	</form>
 	<div id="debug-lm-status" class="section-status"></div>

@@ -10,7 +10,7 @@ env.allowLocalModels = false
 // 'ready'   = fully loaded and available in memory
 const REGISTRY = {
 	'xenova-gpt2':    { label: 'GPT-2 tokenizer',      size: '~800 KB', status: 'unknown', progress: null },
-	'gpt2-lm':        { label: 'GPT-2 LM',             size: '~81 MB',  status: 'unknown', progress: null },
+	'xenova-gpt2-lm': { label: 'GPT-2 LM',             size: '~81 MB',  status: 'unknown', progress: null },
 	'minilm':         { label: 'all-MiniLM-L6-v2',     size: '~23 MB',  status: 'unknown', progress: null },
 	'search-index':   { label: 'Semantic search index', size: null,      status: 'unknown', progress: null },
 	'rag-index':      { label: 'RAG index',             size: null,      status: 'unknown', progress: null },
@@ -35,31 +35,13 @@ async function probeTransformersCache() {
 		const urls  = (await cache.keys()).map(r => r.url)
 		if (REGISTRY['xenova-gpt2'].status === 'unknown')
 			registrySet('xenova-gpt2', { status: urls.some(u => u.includes('Xenova/gpt2') && /tokenizer|vocab|merges/.test(u)) ? 'cached' : 'absent' })
-		if (REGISTRY['gpt2-lm'].status === 'unknown')
-			registrySet('gpt2-lm',        { status: urls.some(u => u.includes('Xenova/gpt2') && u.includes('onnx')) ? 'cached' : 'absent' })
+		if (REGISTRY['xenova-gpt2-lm'].status === 'unknown')
+			registrySet('xenova-gpt2-lm', { status: urls.some(u => u.includes('Xenova/gpt2') && u.includes('onnx')) ? 'cached' : 'absent' })
 		if (REGISTRY['minilm'].status === 'unknown')
 			registrySet('minilm',         { status: urls.some(u => u.includes('Xenova/all-MiniLM-L6-v2')) ? 'cached' : 'absent' })
 	} catch { /* Cache API unavailable — statuses stay 'unknown' */ }
 }
 probeTransformersCache()
-
-// ── shared GPT-2 model (§2 and §3) ────────────────────────────────────────
-let lmModel = null
-
-async function ensureModel(onProgress) {
-	if (lmModel) return lmModel
-	registrySet('gpt2-lm', { status: 'loading', progress: null })
-	lmModel = await GPT2LMHeadModel.from_pretrained('Xenova/gpt2', {
-		quantized: true,
-		progress_callback: info => {
-			if (info.status === 'progress') registrySet('gpt2-lm', { status: 'downloading', progress: info.progress })
-			else if (info.status === 'done') registrySet('gpt2-lm', { status: 'loading',     progress: null })
-			if (onProgress) onProgress(info)
-		},
-	})
-	registrySet('gpt2-lm', { status: 'ready', progress: null })
-	return lmModel
-}
 
 // ── shared helpers ─────────────────────────────────────────────────────────
 function softmaxWithTemp(logits, temp) {
@@ -215,15 +197,19 @@ function drawEmbeddingDiff(canvas, vecA, vecB, scale) {
 	}
 }
 
-// ── shared IDB helpers for embedding/search indices ────────────────────────
-// DB 'golem', store 'search' — used by §5 and §6 to cache flat Float32Array
-// embedding indices between page loads.
-function _openSearchDb() {
+// ── shared IDB helpers ─────────────────────────────────────────────────────
+// Single DB 'golem' v2. Stores:
+//   'search'     — flat Float32Array embedding indices (§5 and §6)
+//   'tokenizers' — { key, modelName } entries for auto-restore (golem.js)
+//   'models'     — { key, modelName } entries for auto-restore (golem.js)
+function _openDb() {
 	return new Promise((resolve, reject) => {
-		const req = indexedDB.open('golem', 1)
+		const req = indexedDB.open('golem', 2)
 		req.onupgradeneeded = e => {
 			const db = e.target.result
-			if (!db.objectStoreNames.contains('search')) db.createObjectStore('search')
+			if (!db.objectStoreNames.contains('search'))     db.createObjectStore('search')
+			if (!db.objectStoreNames.contains('tokenizers')) db.createObjectStore('tokenizers', { keyPath: 'key' })
+			if (!db.objectStoreNames.contains('models'))     db.createObjectStore('models',     { keyPath: 'key' })
 		}
 		req.onsuccess = e => resolve(e.target.result)
 		req.onerror  = e => reject(e.target.error)
@@ -231,7 +217,7 @@ function _openSearchDb() {
 }
 async function idbGet(key) {
 	try {
-		const db = await _openSearchDb()
+		const db = await _openDb()
 		return new Promise((resolve, reject) => {
 			const tx  = db.transaction('search', 'readonly')
 			const req = tx.objectStore('search').get(key)
@@ -242,7 +228,7 @@ async function idbGet(key) {
 }
 async function idbPut(key, value) {
 	try {
-		const db = await _openSearchDb()
+		const db = await _openDb()
 		return new Promise((resolve, reject) => {
 			const tx  = db.transaction('search', 'readwrite')
 			const req = tx.objectStore('search').put(value, key)

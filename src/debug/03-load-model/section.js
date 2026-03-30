@@ -4,22 +4,12 @@
 // _debugClearFns (declared in 01-current-state/section.js).
 
 // Auto-wire clear buttons whenever any LM entry becomes ready.
-// Two cases handled:
-//   1. Fixed 'gpt2-lm' — managed by golem.loadModel/unloadModel; loaded by §2/§3
-//   2. Arbitrary LMs  — managed by golem.loadLM/unloadLM; loaded via this form
-// Calls renderCurrentState() explicitly after each registration because
-// renderCurrentState's own subscriber fires first, missing the new clear fn.
+// All LMs — including the canonical GPT-2 loaded via golem.loadModel() — are
+// now managed through golem.loadLM/_isLMLoaded, so a single loop covers all cases.
+// Calls renderCurrentState() explicitly because renderCurrentState's own subscriber
+// fires first and would miss the new clear fn without the manual second render.
 registrySubscribe(() => {
 	let added = false
-
-	if (REGISTRY['gpt2-lm']?.status === 'ready' && !_debugClearFns.has('gpt2-lm')) {
-		_debugClearFns.set('gpt2-lm', async () => {
-			_debugClearFns.delete('gpt2-lm')
-			await window.golem.unloadModel()
-		})
-		added = true
-	}
-
 	for (const key of Object.keys(REGISTRY)) {
 		if (REGISTRY[key].status === 'ready' && window.golem._isLMLoaded(key) && !_debugClearFns.has(key)) {
 			_debugClearFns.set(key, async () => {
@@ -29,7 +19,6 @@ registrySubscribe(() => {
 			added = true
 		}
 	}
-
 	if (added) renderCurrentState()
 })
 

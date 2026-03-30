@@ -36,25 +36,40 @@ golem.tokenize('xenova-bert-base-uncased', 'hi', (piece, id, i) => …) // with 
 golem.decode('xenova-gpt2', [15496, 11, 995])                      // → 'Hello, world'
 ```
 
-### Model / embedder wrappers
+### Causal LM management
 
 ```js
-await golem.loadModel()    // wraps ensureModel(); updates REGISTRY 'gpt2-lm'
+await golem.loadLM('Xenova/distilgpt2')          // load + save to IDB; key: 'xenova-distilgpt2-lm'
+await golem.loadLM('Xenova/gpt2', false)         // load without saving (pre-declared entry)
+await golem.unloadLM('xenova-distilgpt2-lm')     // remove from memory + IDB; dynamic entries deleted from REGISTRY
+await golem.unloadLM('xenova-gpt2-lm')           // pre-declared entry resets to 'cached' instead of being deleted
+golem.models()    // → { 'xenova-gpt2-lm': 'ready', 'xenova-distilgpt2-lm': 'ready' }
+await golem.loadModel()    // shorthand for loadLM('Xenova/gpt2', false); key: 'xenova-gpt2-lm'
 await golem.loadEmbedder() // wraps ensureEmbedder(); updates REGISTRY 'minilm'
 await golem.embed('hello world') // → Array<number> (384-dim unit vector)
 ```
 
+LM registry keys use a `-lm` suffix to avoid collision with tokenizer keys
+(e.g. `Xenova/gpt2` tokenizer → `xenova-gpt2`; model → `xenova-gpt2-lm`).
+
+`loadModel(onProgress)` is a convenience wrapper around `loadLM('Xenova/gpt2', false, onProgress)`.
+It stores the model in the same `_loadedLMs` Map under `xenova-gpt2-lm`, so there is
+no duplicate if the debug panel and §2 both load GPT-2 — the second call returns the
+cached instance immediately.
+
 ### IndexedDB persistence
 
-Tokenizer names are stored in the `'golem'` database, `'tokenizers'` store
-(`keyPath: 'key'`). On page load, `golem.js` auto-restores any saved tokenizers
-by calling `loadTokenizer(modelName, false)` for each entry — files are re-read
-from the browser cache, so no network request is needed if they were previously
-downloaded.
+All persistence uses the single `'golem'` database (v2) with three stores:
+- `'search'` — `Float32Array` embedding indices (§5, §6); keyed by corpus version string
+- `'tokenizers'` — `{ key, modelName }` for tokenizer auto-restore
+- `'models'` — `{ key, modelName }` for LM auto-restore
 
-`loadTokenizer` with `saveLocally = true` (the default) writes to IDB.
-`unloadTokenizer` deletes from IDB. The debug panel's "save locally" checkbox
-controls the `saveLocally` argument on form submit.
+On page load, `golem.js` auto-restores saved tokenizers and LMs by re-reading
+from browser cache — no re-download needed if files were previously fetched.
+
+`loadTokenizer`/`loadLM` with `saveLocally = true` (the default) write to IDB.
+`unloadTokenizer`/`unloadLM` delete from IDB. The debug panels' "save locally"
+checkboxes control the `saveLocally` argument on form submit.
 
 ### Rules for adding to golem.js
 
@@ -117,10 +132,6 @@ Status lifecycle: `unknown` → (`absent` | `cached`) → `loading` → `downloa
 
 Call `registrySet(key, update)` to update an entry and notify all subscribers. Call `registrySubscribe(fn)` to register a no-argument callback invoked on every change.
 
-### Shared variables
-
-- `lmModel` — GPT-2 causal LM (`GPT2LMHeadModel`); lazily loaded via `ensureModel(onProgress)`.
-
 ### Shared helpers
 
 - `softmaxWithTemp(logits, temp)` — applies temperature and returns a `Float64Array` of probabilities.
@@ -130,9 +141,9 @@ Call `registrySet(key, update)` to update an entry and notify all subscribers. C
 - `drawEmbedding(canvas, vec, scale)` — renders a float vector as a blue/red color bar on a canvas.
 - `drawEmbeddingDiff(canvas, vecA, vecB, scale)` — renders per-dimension absolute difference as a grayscale bar.
 - `drawEmbeddingGrid(canvas, vecs, count, dims, totalRows)` — renders multiple embedding rows in a single canvas.
-- `ensureModel(onProgress)` — lazily loads GPT-2 LM; resolves to the model. Prefer `golem.loadModel()` in section code.
 - `ensureEmbedder(onProgress)` — lazily loads all-MiniLM-L6-v2 via a Web Worker. Prefer `golem.loadEmbedder()` in section code.
 - `embed(text)` — calls `ensureEmbedder()` then returns `Array<number>` (384 dims). Prefer `golem.embed()` in section code.
+- `_openDb()` — opens the `'golem'` v2 IndexedDB with all three stores (`search`, `tokenizers`, `models`). Used by `idbGet`/`idbPut` and by `golem.js` IDB helpers.
 - `idbGet(key)` — reads from the `'golem'` DB / `'search'` store; used by §5 and §6 to cache embedding indices.
 - `idbPut(key, value)` — writes to the `'golem'` DB / `'search'` store.
 - `SAMPLING_WORKER_CODE` — GPT-2 generation worker source string; used by §3 and §6 to each create their own independent `Worker` instance.
