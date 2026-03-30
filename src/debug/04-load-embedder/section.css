@@ -1,0 +1,23 @@
+.debug-load-emb { border-top: 1px solid #e0e0e0; margin-top: 1rem; padding-top: 1rem; }
+.debug-emb-heading { font-size: 0.85rem; font-weight: bold; color: #333; margin: 0 0 0.5rem; }
+.debug-emb-row { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; margin-bottom: 0.3rem; }
+.debug-emb-save-label { font-size: 0.9rem; color: #555; white-space: nowrap; }
+#debug-emb-input {
+	font-family: inherit;
+	font-size: 0.9rem;
+	padding: 0.15rem 0.4rem;
+	border: 1px solid #000;
+	flex: 1;
+	min-width: 14rem;
+}
+.debug-emb-api { margin-top: 0.4rem; }
+.debug-emb-api > summary { font-size: 0.8rem; color: #555; cursor: pointer; }
+.debug-emb-api pre {
+	margin: 0.4rem 0 0;
+	font-family: inherit;
+	font-size: 0.8rem;
+	line-height: 1.45;
+	color: #333;
+	overflow-x: auto;
+	padding: 0;
+}

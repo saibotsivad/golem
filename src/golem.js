@@ -13,11 +13,16 @@
 // golem.unloadLM(key)              → Promise<void>
 // golem.models()                   → { [key]: status }
 // golem.loadModel([onProgress])    → Promise<AutoModelForCausalLM>  (Xenova/gpt2 shorthand)
-// golem.loadEmbedder([onProgress]) → Promise<void>
-// golem.embed(text)                → Promise<number[]>  (384-dim unit vector)
+// golem.loadEmb(name[,save,prog])  → Promise<void>  (any HuggingFace feature-extraction model)
+// golem.unloadEmb(key)             → Promise<void>
+// golem.embedders()                → { [key]: status }
+// golem.embedWith(key, text)       → Promise<number[]>  (unit vector)
+// golem.loadEmbedder([onProgress]) → Promise<void>  (all-MiniLM-L6-v2 shorthand)
+// golem.embed(text)                → Promise<number[]>  (384-dim unit vector, auto-loads MiniLM)
 
 const _loadedTokenizers = new Map() // registryKey → AutoTokenizer instance
 const _loadedLMs        = new Map() // registryKey → AutoModelForCausalLM instance
+const _loadedEmbedders  = new Map() // registryKey → { worker, nextId, pending }
 
 // Capture REGISTRY keys that existed at startup so unloadLM knows whether to
 // reset a pre-declared entry to 'cached' or remove it entirely.
@@ -84,6 +89,70 @@ async function _idbLMDelete(key) {
 	})
 }
 
+// ── embedder worker factory ────────────────────────────────────────────────
+// Each embedder gets its own Worker with the model name baked in.
+function _makeEmbedWorkerSrc(modelName) {
+	return `
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+env.allowLocalModels = false
+
+let _pipePromise = null
+
+function getPipe() {
+	if (!_pipePromise) {
+		_pipePromise = pipeline('feature-extraction', ${JSON.stringify(modelName)}, {
+			quantized: true,
+			progress_callback: info => self.postMessage({ type: 'model_progress', info }),
+		}).then(p => { self.postMessage({ type: 'model_ready' }); return p })
+	}
+	return _pipePromise
+}
+
+self.onmessage = async ({ data }) => {
+	if (data.type === 'load') {
+		await getPipe()
+	} else if (data.type === 'embed') {
+		try {
+			const p   = await getPipe()
+			const out = await p(data.text, { pooling: 'mean', normalize: true })
+			const vec = new Float32Array(out.data)
+			self.postMessage({ type: 'result', id: data.id, vec }, [vec.buffer])
+		} catch (err) {
+			self.postMessage({ type: 'error', id: data.id, message: err.message })
+		}
+	}
+}
+`
+}
+
+// ── IDB helpers — embedders store ─────────────────────────────────────────
+async function _idbEmbGetAll() {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const req = db.transaction('embedders', 'readonly').objectStore('embedders').getAll()
+		req.onsuccess = () => res(req.result)
+		req.onerror = () => rej(req.error)
+	})
+}
+async function _idbEmbPut(key, modelName) {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const tx = db.transaction('embedders', 'readwrite')
+		tx.objectStore('embedders').put({ key, modelName })
+		tx.oncomplete = res
+		tx.onerror = () => rej(tx.error)
+	})
+}
+async function _idbEmbDelete(key) {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const tx = db.transaction('embedders', 'readwrite')
+		tx.objectStore('embedders').delete(key)
+		tx.oncomplete = res
+		tx.onerror = () => rej(tx.error)
+	})
+}
+
 // ── public API ─────────────────────────────────────────────────────────────
 window.golem = {
 	// Convert a HuggingFace model name to its REGISTRY key.
@@ -96,6 +165,9 @@ window.golem = {
 	// True if the given registry key is a causal LM instance held by golem.loadLM.
 	// Covers all models loaded via loadLM, including the GPT-2 shorthand (key: xenova-gpt2-lm).
 	_isLMLoaded(key) { return _loadedLMs.has(key) },
+
+	// True if the given registry key is an embedder held by golem.loadEmb.
+	_isEmbLoaded(key) { return _loadedEmbedders.has(key) },
 
 	// True if the canonical GPT-2 model (Xenova/gpt2, key: xenova-gpt2-lm) is in memory.
 	// Used by §3/§6 model_status guards to avoid clobbering REGISTRY when the main-thread
@@ -244,12 +316,110 @@ window.golem = {
 	// Release the GPT-2 model — shorthand for unloadLM('xenova-gpt2-lm').
 	async unloadModel() { return window.golem.unloadLM('xenova-gpt2-lm') },
 
-	// Load the all-MiniLM-L6-v2 embedding model (wraps ensureEmbedder from shared.js).
-	async loadEmbedder(onProgress) { return ensureEmbedder(onProgress) },
+	// Load an arbitrary feature-extraction (embedding) model by HuggingFace name.
+	// Each model runs in its own Web Worker. Registry key is slug + '-emb'.
+	// saveLocally (default true): persist in IndexedDB for auto-restore on next visit.
+	// onProgress: optional callback forwarded from each progress_callback event.
+	async loadEmb(modelName, saveLocally = true, onProgress = null) {
+		const key = _modelNameToKey(modelName) + '-emb'
+		if (_loadedEmbedders.has(key)) return
 
-	// Embed text using all-MiniLM-L6-v2. Loads the model on first call.
+		if (!REGISTRY[key]) {
+			REGISTRY[key] = { label: modelName, size: null, status: 'loading', progress: null }
+		}
+		registrySet(key, { status: 'loading', progress: null })
+
+		const worker = new Worker(
+			URL.createObjectURL(new Blob([_makeEmbedWorkerSrc(modelName)], { type: 'text/javascript' })),
+			{ type: 'module' }
+		)
+		const entry = { worker, nextId: 0, pending: new Map(), progressListeners: new Set() }
+		if (onProgress) entry.progressListeners.add(onProgress)
+
+		const readyPromise = new Promise((resolve, reject) => {
+			worker.onmessage = ({ data }) => {
+				if (data.type === 'model_progress') {
+					const { info } = data
+					if (info.status === 'progress') registrySet(key, { status: 'downloading', progress: info.progress })
+					else if (info.status === 'done') registrySet(key, { status: 'loading', progress: null })
+					for (const fn of entry.progressListeners) fn(info)
+				} else if (data.type === 'model_ready') {
+					registrySet(key, { status: 'ready', progress: null })
+					resolve()
+				} else if (data.type === 'result') {
+					const cb = entry.pending.get(data.id)
+					if (cb) { entry.pending.delete(data.id); cb.resolve(Array.from(data.vec)) }
+				} else if (data.type === 'error') {
+					const cb = entry.pending.get(data.id)
+					if (cb) { entry.pending.delete(data.id); cb.reject(new Error(data.message)) }
+					else reject(new Error(data.message))
+				}
+			}
+			worker.onerror = err => reject(err)
+		})
+
+		worker.postMessage({ type: 'load' })
+		try {
+			await readyPromise
+		} catch (err) {
+			worker.terminate()
+			if (_predeclaredKeys.has(key)) registrySet(key, { status: 'error' })
+			else registryDelete(key)
+			throw err
+		}
+
+		_loadedEmbedders.set(key, entry)
+		if (saveLocally) await _idbEmbPut(key, modelName)
+		if (onProgress) entry.progressListeners.delete(onProgress)
+	},
+
+	// Remove an embedder from memory, terminate its Worker, and remove from IndexedDB.
+	// Pre-declared entries reset to 'cached'; dynamic entries are removed from REGISTRY.
+	async unloadEmb(key) {
+		const entry = _loadedEmbedders.get(key)
+		if (entry) {
+			for (const [, cb] of entry.pending) cb.reject(new Error('Embedder unloaded'))
+			entry.pending.clear()
+			entry.worker.terminate()
+			_loadedEmbedders.delete(key)
+		}
+		try { await _idbEmbDelete(key) } catch {}
+		if (_predeclaredKeys.has(key))
+			registrySet(key, { status: 'cached', progress: null })
+		else
+			registryDelete(key)
+	},
+
+	// List all embedders loaded via golem.loadEmb.
+	// Returns { [registryKey]: status }
+	embedders() {
+		const out = {}
+		for (const key of _loadedEmbedders.keys()) out[key] = REGISTRY[key]?.status ?? 'ready'
+		return out
+	},
+
+	// Embed text using a specific embedder by registry key.
+	// Returns Array<number> (unit vector with model-specific dimensions).
+	async embedWith(key, text) {
+		const entry = _loadedEmbedders.get(key)
+		if (!entry) throw new Error(`Embedder "${key}" is not loaded — call golem.loadEmb() first`)
+		const id = entry.nextId++
+		return new Promise((resolve, reject) => {
+			entry.pending.set(id, { resolve, reject })
+			entry.worker.postMessage({ type: 'embed', id, text })
+		})
+	},
+
+	// Load all-MiniLM-L6-v2 (shorthand for loadEmb('Xenova/all-MiniLM-L6-v2', false, onProgress)).
+	// Used by §4, §5, §6. saveLocally is false so this pre-declared entry is not written to IDB.
+	async loadEmbedder(onProgress) { return window.golem.loadEmb('Xenova/all-MiniLM-L6-v2', false, onProgress) },
+
+	// Embed text using all-MiniLM-L6-v2. Auto-loads on first call.
 	// Returns Array<number> of 384 dimensions.
-	async embed(text) { return embed(text) },
+	async embed(text) {
+		await window.golem.loadEmbedder()
+		return window.golem.embedWith('xenova-all-minilm-l6-v2-emb', text)
+	},
 }
 
 // Auto-restore tokenizers saved in previous sessions.
@@ -267,5 +437,14 @@ window.golem = {
 	try { saved = await _idbLMGetAll() } catch { return }
 	for (const { modelName } of saved) {
 		try { await window.golem.loadLM(modelName, false) } catch {}
+	}
+})()
+
+// Auto-restore embedders saved in previous sessions.
+;(async () => {
+	let saved
+	try { saved = await _idbEmbGetAll() } catch { return }
+	for (const { modelName } of saved) {
+		try { await window.golem.loadEmb(modelName, false) } catch {}
 	}
 })()

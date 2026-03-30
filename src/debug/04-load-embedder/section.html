@@ -1,0 +1,38 @@
+<div class="debug-load-emb">
+	<p class="debug-emb-heading">Load embedding model</p>
+	<form id="debug-emb-form">
+		<div class="debug-emb-row">
+			<input type="text" id="debug-emb-input" placeholder="e.g. Xenova/all-MiniLM-L6-v2">
+			<label class="debug-emb-save-label"><input type="checkbox" id="debug-emb-save" checked> save locally</label>
+			<button type="submit" id="debug-emb-btn">Load</button>
+		</div>
+		<p class="param-note">HuggingFace model name for a <code>feature-extraction</code> pipeline. Registry keys get an <code>-emb</code> suffix (e.g. <code>xenova-all-minilm-l6-v2-emb</code>). Try <code>Xenova/all-MiniLM-L6-v2</code> &mdash; 384-dimensional sentence embeddings, ~23&nbsp;MB quantized, the same model used by &sect;4, &sect;5, and &sect;6; loading it here pre-warms it for those sections with no duplicate download. For a multilingual alternative: <code>Xenova/paraphrase-multilingual-MiniLM-L12-v2</code> &mdash; 384 dimensions, 50+ languages, ~120&nbsp;MB quantized.</p>
+		<details class="debug-emb-api">
+			<summary>console API</summary>
+<pre>// What's loaded?
+golem.embedders()
+// &rarr; { 'xenova-all-minilm-l6-v2-emb': 'ready' }
+
+// Pre-warm the MiniLM used by &sect;4/&sect;5/&sect;6 &mdash; same instance, no duplicate
+await golem.loadEmb('Xenova/all-MiniLM-L6-v2')
+// REGISTRY['xenova-all-minilm-l6-v2-emb'].status &rarr; 'ready'
+// golem.embed() / golem.loadEmbedder() use this same entry
+
+// Load a multilingual model for comparison
+await golem.loadEmb('Xenova/paraphrase-multilingual-MiniLM-L12-v2')
+// REGISTRY key: 'xenova-paraphrase-multilingual-minilm-l12-v2-emb'
+
+// Embed with a specific model
+const vec = await golem.embedWith('xenova-paraphrase-multilingual-minilm-l12-v2-emb', 'Bonjour le monde')
+// &rarr; Array(384) of numbers (unit vector)
+
+// The default golem.embed() always uses all-MiniLM-L6-v2
+const vec2 = await golem.embed('hello world')
+
+// Unload &mdash; pre-declared entry resets to 'cached'; dynamic entries are removed
+await golem.unloadEmb('xenova-all-minilm-l6-v2-emb')
+await golem.unloadEmb('xenova-paraphrase-multilingual-minilm-l12-v2-emb')</pre>
+		</details>
+	</form>
+	<div id="debug-emb-status" class="section-status"></div>
+</div>

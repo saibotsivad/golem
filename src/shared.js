@@ -1,4 +1,4 @@
-import { AutoTokenizer, AutoModelForCausalLM, GPT2LMHeadModel, pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
+import { AutoTokenizer, AutoModelForCausalLM, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
 
 env.allowLocalModels = false
 
@@ -11,7 +11,7 @@ env.allowLocalModels = false
 const REGISTRY = {
 	'xenova-gpt2':    { label: 'GPT-2 tokenizer',      size: '~800 KB', status: 'unknown', progress: null },
 	'xenova-gpt2-lm': { label: 'GPT-2 LM',             size: '~81 MB',  status: 'unknown', progress: null },
-	'minilm':         { label: 'all-MiniLM-L6-v2',     size: '~23 MB',  status: 'unknown', progress: null },
+	'xenova-all-minilm-l6-v2-emb': { label: 'all-MiniLM-L6-v2 embedder', size: '~23 MB', status: 'unknown', progress: null },
 	'search-index':   { label: 'Semantic search index', size: null,      status: 'unknown', progress: null },
 	'rag-index':      { label: 'RAG index',             size: null,      status: 'unknown', progress: null },
 }
@@ -37,8 +37,8 @@ async function probeTransformersCache() {
 			registrySet('xenova-gpt2', { status: urls.some(u => u.includes('Xenova/gpt2') && /tokenizer|vocab|merges/.test(u)) ? 'cached' : 'absent' })
 		if (REGISTRY['xenova-gpt2-lm'].status === 'unknown')
 			registrySet('xenova-gpt2-lm', { status: urls.some(u => u.includes('Xenova/gpt2') && u.includes('onnx')) ? 'cached' : 'absent' })
-		if (REGISTRY['minilm'].status === 'unknown')
-			registrySet('minilm',         { status: urls.some(u => u.includes('Xenova/all-MiniLM-L6-v2')) ? 'cached' : 'absent' })
+		if (REGISTRY['xenova-all-minilm-l6-v2-emb'].status === 'unknown')
+			registrySet('xenova-all-minilm-l6-v2-emb', { status: urls.some(u => u.includes('Xenova/all-MiniLM-L6-v2')) ? 'cached' : 'absent' })
 	} catch { /* Cache API unavailable — statuses stay 'unknown' */ }
 }
 probeTransformersCache()
@@ -67,90 +67,6 @@ function escHtml(s) {
 	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-
-// ── shared embedder (§4 and §5) — runs in a worker to keep UI responsive ──
-const _EMBED_WORKER_SRC = `
-import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js'
-env.allowLocalModels = false
-
-let _pipePromise = null
-
-function getPipe() {
-	if (!_pipePromise) {
-		_pipePromise = pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-			quantized: true,
-			progress_callback: info => self.postMessage({ type: 'model_progress', info }),
-		}).then(p => { self.postMessage({ type: 'model_ready' }); return p })
-	}
-	return _pipePromise
-}
-
-self.onmessage = async ({ data }) => {
-	if (data.type === 'load') {
-		await getPipe()
-	} else if (data.type === 'embed') {
-		try {
-			const p   = await getPipe()
-			const out = await p(data.text, { pooling: 'mean', normalize: true })
-			const vec = new Float32Array(out.data)
-			self.postMessage({ type: 'result', id: data.id, vec }, [vec.buffer])
-		} catch (err) {
-			self.postMessage({ type: 'error', id: data.id, message: err.message })
-		}
-	}
-}
-`
-
-const _embedWorker = new Worker(
-	URL.createObjectURL(new Blob([_EMBED_WORKER_SRC], { type: 'text/javascript' })),
-	{ type: 'module' }
-)
-let _embedReady      = false
-let _embedReadyCbs   = []
-let _embedLoadSent   = false
-let _embedNextId     = 0
-const _embedProgressListeners = new Set()
-const _embedPending           = new Map()
-
-_embedWorker.onmessage = ({ data }) => {
-	if (data.type === 'model_progress') {
-		const { info } = data
-		if (info.status === 'progress') registrySet('minilm', { status: 'downloading', progress: info.progress })
-		else if (info.status === 'done') registrySet('minilm', { status: 'loading',    progress: null })
-		for (const fn of _embedProgressListeners) fn(info)
-	} else if (data.type === 'model_ready') {
-		registrySet('minilm', { status: 'ready', progress: null })
-		_embedReady = true
-		for (const fn of _embedReadyCbs) fn()
-		_embedReadyCbs = []
-	} else if (data.type === 'result') {
-		const cb = _embedPending.get(data.id)
-		if (cb) { _embedPending.delete(data.id); cb.resolve(Array.from(data.vec)) }
-	} else if (data.type === 'error') {
-		const cb = _embedPending.get(data.id)
-		if (cb) { _embedPending.delete(data.id); cb.reject(new Error(data.message)) }
-	}
-}
-
-async function ensureEmbedder(onProgress) {
-	if (onProgress) _embedProgressListeners.add(onProgress)
-	if (!_embedLoadSent) {
-		_embedLoadSent = true
-		registrySet('minilm', { status: 'loading', progress: null })
-		_embedWorker.postMessage({ type: 'load' })
-	}
-	if (!_embedReady) await new Promise(resolve => _embedReadyCbs.push(resolve))
-	if (onProgress) _embedProgressListeners.delete(onProgress)
-}
-
-async function embed(text) {
-	await ensureEmbedder()
-	const id = _embedNextId++
-	return new Promise((resolve, reject) => {
-		_embedPending.set(id, { resolve, reject })
-		_embedWorker.postMessage({ type: 'embed', id, text })
-	})
-}
 
 function cosine(a, b) {
 	let dot = 0, na = 0, nb = 0
@@ -198,18 +114,20 @@ function drawEmbeddingDiff(canvas, vecA, vecB, scale) {
 }
 
 // ── shared IDB helpers ─────────────────────────────────────────────────────
-// Single DB 'golem' v2. Stores:
+// Single DB 'golem' v3. Stores:
 //   'search'     — flat Float32Array embedding indices (§5 and §6)
 //   'tokenizers' — { key, modelName } entries for auto-restore (golem.js)
 //   'models'     — { key, modelName } entries for auto-restore (golem.js)
+//   'embedders'  — { key, modelName } entries for embedder auto-restore (golem.js)
 function _openDb() {
 	return new Promise((resolve, reject) => {
-		const req = indexedDB.open('golem', 2)
+		const req = indexedDB.open('golem', 3)
 		req.onupgradeneeded = e => {
 			const db = e.target.result
 			if (!db.objectStoreNames.contains('search'))     db.createObjectStore('search')
 			if (!db.objectStoreNames.contains('tokenizers')) db.createObjectStore('tokenizers', { keyPath: 'key' })
 			if (!db.objectStoreNames.contains('models'))     db.createObjectStore('models',     { keyPath: 'key' })
+			if (!db.objectStoreNames.contains('embedders'))  db.createObjectStore('embedders',  { keyPath: 'key' })
 		}
 		req.onsuccess = e => resolve(e.target.result)
 		req.onerror  = e => reject(e.target.error)
