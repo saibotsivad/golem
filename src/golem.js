@@ -410,7 +410,10 @@ window.golem = {
 	// onProgress: optional callback forwarded from each progress_callback event.
 	async loadEmb(modelName, saveLocally = true, onProgress = null) {
 		const key = _modelNameToKey(modelName) + '-emb'
-		if (_loadedEmbedders.has(key)) return
+		if (_loadedEmbedders.has(key)) {
+			if (onProgress) onProgress({ status: 'ready' })
+			return
+		}
 
 		if (!REGISTRY[key]) {
 			REGISTRY[key] = { label: modelName, modelName, size: null, status: 'loading', progress: null }
