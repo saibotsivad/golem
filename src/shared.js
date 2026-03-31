@@ -11,7 +11,7 @@ env.allowLocalModels = false
 const REGISTRY = {
 	'xenova-gpt2':    { label: 'GPT-2 tokenizer',      size: '~800 KB', status: 'unknown', progress: null },
 	'xenova-gpt2-lm': { label: 'GPT-2 LM',             size: '~81 MB',  status: 'unknown', progress: null },
-	'xenova-all-minilm-l6-v2-emb': { label: 'all-MiniLM-L6-v2 embedder', size: '~23 MB', status: 'unknown', progress: null },
+	'xenova-all-minilm-l6-v2-emb': { label: 'all-MiniLM-L6-v2 embedder', modelName: 'Xenova/all-MiniLM-L6-v2', size: '~23 MB', status: 'unknown', progress: null },
 }
 const _registryListeners = []
 function registrySubscribe(fn) { _registryListeners.push(fn) }

@@ -370,7 +370,7 @@ window.golem = {
 		if (_loadedEmbedders.has(key)) return
 
 		if (!REGISTRY[key]) {
-			REGISTRY[key] = { label: modelName, size: null, status: 'loading', progress: null }
+			REGISTRY[key] = { label: modelName, modelName, size: null, status: 'loading', progress: null }
 		}
 		registrySet(key, { status: 'loading', progress: null })
 
@@ -389,7 +389,6 @@ window.golem = {
 					else if (info.status === 'done') registrySet(key, { status: 'loading', progress: null })
 					for (const fn of entry.progressListeners) fn(info)
 				} else if (data.type === 'model_ready') {
-					registrySet(key, { status: 'ready', progress: null })
 					resolve()
 				} else if (data.type === 'result') {
 					const cb = entry.pending.get(data.id)
@@ -415,11 +414,13 @@ window.golem = {
 
 		_loadedEmbedders.set(key, entry)
 		if (saveLocally) await _idbEmbPut(key, modelName)
+		registrySet(key, { status: 'ready', progress: null })
 		if (onProgress) entry.progressListeners.delete(onProgress)
 	},
 
-	// Remove an embedder from memory, terminate its Worker, and remove from IndexedDB.
-	// Pre-declared entries reset to 'cached'; dynamic entries are removed from REGISTRY.
+	// Remove an embedder from memory, terminate its Worker, remove from IndexedDB,
+	// and clear the model's files from the browser Cache API ('transformers-cache').
+	// Pre-declared entries reset to 'absent' (files cleared); dynamic entries are removed from REGISTRY.
 	async unloadEmb(key) {
 		const entry = _loadedEmbedders.get(key)
 		if (entry) {
@@ -429,8 +430,16 @@ window.golem = {
 			_loadedEmbedders.delete(key)
 		}
 		try { await _idbEmbDelete(key) } catch {}
+		const modelName = REGISTRY[key]?.modelName
+		if (modelName) {
+			try {
+				const cache = await caches.open('transformers-cache')
+				const requests = await cache.keys()
+				await Promise.all(requests.filter(r => r.url.includes(modelName)).map(r => cache.delete(r)))
+			} catch {}
+		}
 		if (_predeclaredKeys.has(key))
-			registrySet(key, { status: 'cached', progress: null })
+			registrySet(key, { status: 'absent', progress: null })
 		else
 			registryDelete(key)
 	},
