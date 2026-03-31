@@ -1,0 +1,48 @@
+/* ── §7 memory ── */
+#mem-add-input { width: 100%; box-sizing: border-box; }
+#mem-add-btn { margin-top: 0.4rem; }
+#mem-list-wrap { margin-top: 1.4rem; }
+.mem-list-header {
+	display: flex;
+	align-items: baseline;
+	gap: 1rem;
+	margin-bottom: 0.5rem;
+	border-bottom: 1px solid #ddd;
+	padding-bottom: 0.3rem;
+}
+#mem-count { font-size: 0.85rem; color: #555; }
+#mem-clear-all-btn { padding: 0.1rem 0.5rem; font-size: 0.8rem; }
+.mem-row {
+	padding: 0.55rem 0;
+	border-bottom: 1px solid #eee;
+}
+.mem-canvas {
+	display: block;
+	width: 100%;
+	height: 8px;
+	image-rendering: pixelated;
+	margin-bottom: 0.35rem;
+}
+.mem-body {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+}
+.mem-text {
+	flex: 1;
+	font-size: 0.9rem;
+	line-height: 1.4;
+}
+.mem-actions {
+	display: flex;
+	gap: 0.3rem;
+	flex-shrink: 0;
+}
+.mem-actions button { padding: 0.1rem 0.5rem; font-size: 0.8rem; }
+.mem-edit-ta {
+	flex: 1;
+	font-family: inherit;
+	font-size: 0.9rem;
+	min-height: 3rem;
+	box-sizing: border-box;
+}

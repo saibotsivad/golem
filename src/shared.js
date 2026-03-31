@@ -112,20 +112,22 @@ function drawEmbeddingDiff(canvas, vecA, vecB, scale) {
 }
 
 // ── shared IDB helper ──────────────────────────────────────────────────────
-// Single DB 'golem' v3. Stores:
+// Single DB 'golem' v4. Stores:
 //   'search'     — flat Float32Array embedding indices (§5 and §6); managed by golem.js
 //   'tokenizers' — { key, modelName } entries for auto-restore (golem.js)
 //   'models'     — { key, modelName } entries for auto-restore (golem.js)
 //   'embedders'  — { key, modelName } entries for embedder auto-restore (golem.js)
+//   'memories'   — { id, text, vec: Float32Array } user-added memories (§7); managed by golem.js
 function _openDb() {
 	return new Promise((resolve, reject) => {
-		const req = indexedDB.open('golem', 3)
+		const req = indexedDB.open('golem', 4)
 		req.onupgradeneeded = e => {
 			const db = e.target.result
 			if (!db.objectStoreNames.contains('search'))     db.createObjectStore('search')
 			if (!db.objectStoreNames.contains('tokenizers')) db.createObjectStore('tokenizers', { keyPath: 'key' })
 			if (!db.objectStoreNames.contains('models'))     db.createObjectStore('models',     { keyPath: 'key' })
 			if (!db.objectStoreNames.contains('embedders'))  db.createObjectStore('embedders',  { keyPath: 'key' })
+			if (!db.objectStoreNames.contains('memories'))   db.createObjectStore('memories',   { keyPath: 'id' })
 		}
 		req.onsuccess = e => resolve(e.target.result)
 		req.onerror  = e => reject(e.target.error)

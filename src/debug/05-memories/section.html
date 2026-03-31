@@ -1,0 +1,15 @@
+<div class="debug-memories">
+	<p class="debug-memories-heading">Memory store (§7)</p>
+	<p class="param-note">
+		Embedded memories from §7 stored in IndexedDB.<br>
+		A ✕ button appears in the state table above while memories are present.
+	</p>
+	<details class="debug-memories-api">
+		<summary>console API</summary>
+		<pre>
+golem.loadMemories()              // → [{id, text, vec}, …]
+golem.saveMemory(id, text, vec)   // upsert a memory (id = crypto.randomUUID())
+golem.deleteMemory(id)            // delete one memory
+golem.clearMemories()             // delete all memories</pre>
+	</details>
+</div>

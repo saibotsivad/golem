@@ -1,0 +1,5 @@
+/* ── debug panel: memories ── */
+.debug-memories { margin-top: 1.4rem; }
+.debug-memories-heading { font-weight: bold; margin: 0 0 0.4rem; }
+.debug-memories-api { margin-top: 0.6rem; }
+.debug-memories-api pre { font-size: 0.8rem; }

@@ -1,0 +1,32 @@
+<!-- ════════════════════════════════════════════
+     §7 — Memory
+     ════════════════════════════════════════════ -->
+<h2>§7 — Memory</h2>
+<p>
+	An agent's "memory" is a writable version of the retrieval index from §5–§6.
+	Each fact is embedded once and stored in IndexedDB — the same technique used
+	to build the static corpus in §6, but now you control what goes in.
+	When you query the agent in the next section, these memories will be retrieved
+	by similarity and injected into the prompt as context, closing the loop from
+	storage to generation.
+</p>
+<p class="param-note">
+	Add a few facts about yourself or anything you want the agent to remember:
+	<em>"I prefer concise explanations"</em>,
+	<em>"I am a machine learning engineer"</em>,
+	<em>"My favorite programming language is JavaScript"</em>.
+</p>
+
+<form id="mem-add-form">
+	<textarea id="mem-add-input" placeholder="Enter a fact or preference to remember…" rows="2"></textarea>
+	<button type="submit" id="mem-add-btn">Add memory  [~23 MB embedder, same as §4–§6]</button>
+</form>
+<div id="mem-add-status" class="section-status"></div>
+
+<div id="mem-list-wrap" hidden>
+	<div class="mem-list-header">
+		<span id="mem-count"></span>
+		<button type="button" id="mem-clear-all-btn">clear all</button>
+	</div>
+	<div id="mem-list"></div>
+</div>

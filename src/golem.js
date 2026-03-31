@@ -25,6 +25,12 @@
 // golem.saveIndex(key, label, data)         → Promise<void>
 // golem.deleteIndex(key)                    → Promise<void>
 // golem.indexes()                           → { [key]: status }
+//
+// Memory management (§7)
+// golem.loadMemories()                      → Promise<Array<{id,text,vec}>>
+// golem.saveMemory(id, text, vec)           → Promise<void>
+// golem.deleteMemory(id)                    → Promise<void>
+// golem.clearMemories()                     → Promise<void>
 
 const _loadedTokenizers = new Map() // registryKey → AutoTokenizer instance
 const _loadedLMs        = new Map() // registryKey → AutoModelForCausalLM instance
@@ -195,6 +201,43 @@ async function _idbEmbDelete(key) {
 		tx.objectStore('embedders').delete(key)
 		tx.oncomplete = res
 		tx.onerror = () => rej(tx.error)
+	})
+}
+
+// ── IDB helpers — memories store ──────────────────────────────────────────
+async function _idbMemGetAll() {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const req = db.transaction('memories', 'readonly').objectStore('memories').getAll()
+		req.onsuccess = () => res(req.result)
+		req.onerror   = () => rej(req.error)
+	})
+}
+async function _idbMemPut(id, text, vec) {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const tx = db.transaction('memories', 'readwrite')
+		tx.objectStore('memories').put({ id, text, vec })
+		tx.oncomplete = res
+		tx.onerror    = () => rej(tx.error)
+	})
+}
+async function _idbMemDelete(id) {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const tx = db.transaction('memories', 'readwrite')
+		tx.objectStore('memories').delete(id)
+		tx.oncomplete = res
+		tx.onerror    = () => rej(tx.error)
+	})
+}
+async function _idbMemClear() {
+	const db = await _openDb()
+	return new Promise((res, rej) => {
+		const tx = db.transaction('memories', 'readwrite')
+		tx.objectStore('memories').clear()
+		tx.oncomplete = res
+		tx.onerror    = () => rej(tx.error)
 	})
 }
 
@@ -522,6 +565,51 @@ window.golem = {
 		const out = {}
 		for (const key of _indexKeys) out[key] = REGISTRY[key]?.status ?? 'unknown'
 		return out
+	},
+
+	// ── Memory management (§7) ────────────────────────────────────────────────
+
+	// Load all memories from IndexedDB.
+	// Initializes the REGISTRY 'memories' entry; sets status 'ready' if any found, 'absent' if empty.
+	// Returns Array<{id, text, vec: Float32Array}>.
+	async loadMemories() {
+		if (!REGISTRY['memories']) {
+			REGISTRY['memories'] = { label: 'Memory store', size: null, status: 'unknown', progress: null }
+		}
+		try {
+			const records = await _idbMemGetAll()
+			registrySet('memories', { status: records.length > 0 ? 'ready' : 'absent' })
+			return records.map(r => ({
+				id: r.id, text: r.text,
+				vec: r.vec instanceof Float32Array ? r.vec : new Float32Array(r.vec),
+			}))
+		} catch {
+			registrySet('memories', { status: 'absent' })
+			return []
+		}
+	},
+
+	// Upsert a memory by id. Creates or updates the record in IndexedDB.
+	// Sets REGISTRY 'memories' status to 'ready'.
+	async saveMemory(id, text, vec) {
+		if (!REGISTRY['memories']) {
+			REGISTRY['memories'] = { label: 'Memory store', size: null, status: 'unknown', progress: null }
+		}
+		await _idbMemPut(id, text, vec)
+		registrySet('memories', { status: 'ready' })
+	},
+
+	// Delete a single memory by id. Does not update REGISTRY status — the
+	// caller should call registrySet('memories', { status: 'absent' }) if no
+	// memories remain.
+	async deleteMemory(id) {
+		await _idbMemDelete(id)
+	},
+
+	// Delete all memories from IndexedDB and set REGISTRY 'memories' to 'absent'.
+	async clearMemories() {
+		await _idbMemClear()
+		if (REGISTRY['memories']) registrySet('memories', { status: 'absent' })
 	},
 }
 
