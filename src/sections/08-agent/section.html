@@ -1,0 +1,70 @@
+<!-- ════════════════════════════════════════════
+     §8 — Memory-Grounded Generation
+     ════════════════════════════════════════════ -->
+<h2>§8 — Memory-Grounded Generation</h2>
+<p>
+	The memories stored in §7 are put to work here. When you send a message it is
+	embedded with the same model that stored the memories, and the most similar memories
+	are retrieved by cosine similarity — exactly like §5 semantic search, but over your
+	personal store. Those memories are then substituted into a prompt template before
+	GPT-2 generates a continuation. This is the core loop behind most memory-enabled
+	agents: <em>embed → retrieve → inject → generate</em>.
+</p>
+<p class="param-note">
+	<code>[[memories]]</code> is replaced by the top-k retrieved memories as a
+	comma-separated list.<br>
+	<code>[[message]]</code> is replaced verbatim by your message below.<br>
+	Both placeholders are optional — leave one out to skip that step.
+</p>
+
+<form id="agent-form">
+	<div class="agent-field-label">Prompt template</div>
+	<textarea id="agent-template" rows="4">Facts: [[memories]]
+
+[[message]]</textarea>
+
+	<div class="param-row">
+		<label>Retrieve k
+			<input type="number" id="agent-mem-k" value="3" min="1" max="10" step="1">
+		</label>
+		<label>Strategy
+			<select id="agent-strategy">
+				<option value="greedy">greedy</option>
+				<option value="temperature" selected>temperature</option>
+				<option value="topk">top-k</option>
+				<option value="topp">top-p (nucleus)</option>
+			</select>
+		</label>
+		<label id="agent-temp-label">Temperature
+			<input type="number" id="agent-temp" value="1.0" min="0.1" max="5.0" step="0.1">
+		</label>
+		<label id="agent-topk-label" hidden>K
+			<input type="number" id="agent-topk" value="40" min="1" max="500" step="1">
+		</label>
+		<label id="agent-topp-label" hidden>P
+			<input type="number" id="agent-topp" value="0.9" min="0.01" max="1.0" step="0.01">
+		</label>
+		<label>Max tokens
+			<input type="number" id="agent-max" value="40" min="1" max="200" step="1">
+		</label>
+	</div>
+
+	<div class="agent-field-label">Message</div>
+	<textarea id="agent-message" rows="2" placeholder="Enter your message\u2026"></textarea>
+
+	<button type="submit" id="agent-gen-btn">Generate  [~23 MB embedder + ~81 MB model]</button>
+	<button type="button" id="agent-stop-btn" disabled>Stop</button>
+</form>
+<div id="agent-status" class="section-status"></div>
+
+<div id="agent-results" hidden>
+	<div class="agent-label">retrieved memories</div>
+	<div id="agent-retrieved"></div>
+
+	<div class="agent-label">assembled prompt</div>
+	<pre id="agent-prompt-box"></pre>
+
+	<div class="agent-label">generated output</div>
+	<div id="agent-output"></div>
+	<div id="agent-meta"></div>
+</div>
