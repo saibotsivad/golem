@@ -13,7 +13,7 @@ body {
 
 h1 { font-size: 1.4rem; margin: 0; }
 .site-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.2rem; }
-.debug-toggle { font-size: 0.75rem; color: #aaa; text-decoration: none; }
+.debug-toggle { font-size: 0.75rem; color: #aaa; text-decoration: none; cursor: pointer; background: none; border: none; font-family: inherit; padding: 0; }
 .debug-toggle:hover { color: #555; }
 #debug-panel { padding: 1rem 0; }
 h2 { font-size: 1.1rem; margin: 2.5rem 0 0.5rem; border-bottom: 1px solid #000; padding-bottom: 0.2rem; }
@@ -76,3 +76,9 @@ button:disabled {
 }
 .param-row input[type=number] { width: 5rem; }
 .param-note { font-size: 0.8rem; color: #555; margin-top: 0.3rem; }
+
+/* ── generated token rendering (shared by §3, §6, §8) ── */
+.gen-prompt { color: #888; }
+.gen-tok   { display: inline; white-space: pre; }
+.gen-tok-a { background: #fdeedd; }
+.gen-tok-b { background: #ddeef8; }
